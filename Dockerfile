@@ -20,6 +20,10 @@ RUN bun install --frozen-lockfile
 COPY --from=pruner /app/out/full/ .
 RUN bun install --frozen-lockfile
 
+# В Coolify: Build-time / Environment
+ARG NEXT_PUBLIC_CONVEX_URL
+ENV NEXT_PUBLIC_CONVEX_URL=${NEXT_PUBLIC_CONVEX_URL}
+
 RUN bunx turbo run build --filter=web
 
 # Runner на том же образе, что и сборка: не тянем node:*-alpine (Docker DX часто ругается на CVE в базе).

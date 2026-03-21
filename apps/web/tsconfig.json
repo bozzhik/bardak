@@ -10,6 +10,7 @@
 
     "paths": {
       "@/*": ["./src/*"],
+      "@convex/*": ["./convex/*"],
       "~/*": ["./src/components/*"],
       "~~/*": ["./src/components/app/*"],
       "$/*": ["./src/assets/*"]
