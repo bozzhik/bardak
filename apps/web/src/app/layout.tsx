@@ -4,6 +4,9 @@ import './globals.css'
 
 import {cn} from '@/lib/utils'
 
+import {TooltipProvider} from '~/ui/tooltip'
+import {Toaster} from '~/ui/sonner'
+
 import YandexMetrika from '~/global/analytics'
 
 export default function RootLayout({
@@ -14,7 +17,11 @@ export default function RootLayout({
   return (
     <html lang="ru" className={cn([geistSans.variable, geistMono.variable], 'dark scroll-smooth')}>
       <body>
-        {children}
+        <TooltipProvider>
+          {children}
+
+          <Toaster />
+        </TooltipProvider>
 
         {process.env.NODE_ENV === 'production' && <YandexMetrika />}
       </body>
