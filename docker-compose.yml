@@ -1,0 +1,28 @@
+# docker compose up --build
+#   web → http://localhost:3000
+#   bot → http://localhost:2000
+
+name: bardak
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - '3000:3000'
+    env_file:
+      - .env.local
+    restart: unless-stopped
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.bot
+    ports:
+      - '2000:2000'
+    env_file:
+      - .env.local
+    environment:
+      PORT: '2000'
+    restart: unless-stopped

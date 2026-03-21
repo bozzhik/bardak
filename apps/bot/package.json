@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun --watch src/index.ts",
+    "dev": "bunx --bun serve -l 2000 .",
+    "start": "bun --watch src/index.ts",
     "build": "node -e \"process.exit(0)\"",
     "lint": "eslint --max-warnings 0",
     "check-types": "tsc --noEmit"

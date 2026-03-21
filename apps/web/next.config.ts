@@ -1,13 +1,15 @@
 import type {NextConfig} from 'next'
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['@repo/shared'],
   experimental: {
     typedEnv: true,
-    browserDebugInfoInTerminal: true,
   },
 
+  output: 'standalone',
+  transpilePackages: ['@repo/shared'],
+
   typedRoutes: true,
+  logging: {browserToTerminal: true},
   images: {
     qualities: [70, 100],
   },
