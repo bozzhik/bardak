@@ -9,10 +9,10 @@
     "strictNullChecks": true,
 
     "paths": {
-      "@/*": ["./*"],
-      "~/*": ["./components/*"],
-      "~~/*": ["./components/app/*"],
-      "$/*": ["./assets/*"]
+      "@/*": ["./src/*"],
+      "~/*": ["./src/components/*"],
+      "~~/*": ["./src/components/app/*"],
+      "$/*": ["./src/assets/*"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx", "next-env.d.ts", "next.config.js", ".next/types/**/*.ts"],
