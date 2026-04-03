@@ -2,7 +2,7 @@
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 
-@custom-variant xl (@media (max-width: 1780px));
+@custom-variant xl (@media (max-width: 1780px) and (min-width: 501px));
 @custom-variant sm (@media (max-width: 500px));
 
 @custom-variant dark (&:is(.dark *));
