@@ -1,3 +1,5 @@
-import {hello} from '@repo/shared'
+import {createBot} from './telegram-bot.js'
 
-console.log(hello('bot'))
+const bot = createBot()
+await bot.start()
+console.log('Bot started in long-polling mode')

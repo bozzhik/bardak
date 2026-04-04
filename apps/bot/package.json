@@ -3,14 +3,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bunx --bun serve -l 2000 .",
-    "start": "bun --watch src/index.ts",
+    "dev": "bun src/index.ts",
     "build": "node -e \"process.exit(0)\"",
     "lint": "eslint --max-warnings 0",
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@repo/shared": "*"
+    "@repo/shared": "*",
+    "convex": "^1.28.0",
+    "elysia": "^1.4.16",
+    "grammy": "^1.39.2"
   },
   "devDependencies": {
     "@repo/eslint-config": "*",
