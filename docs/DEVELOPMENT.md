@@ -1,6 +1,6 @@
 # Development — Bardak
 
-Продуктовая спецификация (фичи, аудитория, монетизация, MVP-scope): [`PRODUCT.md`](./PRODUCT.md)
+Продуктовая спецификация (фичи, аудитория, монетизация, MVP-scope): [`PRODUCT.md`](./PRODUCT.md) Стратегическая дорожная карта: [`PLAN.md`](./PLAN.md) Операционный план MVP (пошагово): [`MVP.md`](./MVP.md)
 
 ---
 
@@ -10,7 +10,7 @@
 | ------------ | ------------------------------------------------------------- |
 | Monorepo     | Turborepo + Bun                                               |
 | Web          | Next.js 16 (App Router, RSC)                                  |
-| Bot          | Elysia (HTTP) + Telegram-фреймворк (grammy / telegraf — TBD) |
+| Bot          | Elysia (HTTP) + Telegram-фреймворк (grammy / telegraf — TBD)  |
 | Backend / DB | Convex (queries, mutations, actions, file storage, scheduler) |
 | UI           | Tailwind CSS v4 + shadcn/ui (base-nova) + Lucide              |
 | AI           | OpenRouter (gateway к моделям)                                |
@@ -56,7 +56,8 @@ bardak/
 ├── docs/
 │   ├── PRODUCT.md    — продуктовая спецификация
 │   ├── DEVELOPMENT.md — эта документация
-│   └── PLAN.md       — дорожная карта с чекбоксами
+│   ├── PLAN.md       — стратегическая дорожная карта
+│   └── MVP.md         — пошаговый план реализации MVP
 ├── Dockerfile        — web
 ├── Dockerfile.bot    — bot
 └── docker-compose.yml
