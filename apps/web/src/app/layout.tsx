@@ -16,8 +16,8 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="ru" className={cn([geistSans.variable, geistMono.variable], 'dark scroll-smooth')}>
-      <body>
+    <html lang="ru" className={cn([geistSans.variable, geistMono.variable], 'dark', 'h-full scroll-smooth font-sans antialiased')}>
+      <body className={cn('min-h-full flex flex-col', 'bg-background text-foreground')}>
         <ConvexProvider>
           <TooltipProvider>
             {children}
