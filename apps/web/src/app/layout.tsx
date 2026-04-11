@@ -4,7 +4,7 @@ import './globals.css'
 
 import {cn} from '@/lib/utils'
 
-import {ConvexProvider} from '@/lib/convex'
+import {ConvexProvider} from '@/lib/convex/provider'
 import {TooltipProvider} from '~/primitives/tooltip'
 import YandexMetrika from '~/global/analytics'
 

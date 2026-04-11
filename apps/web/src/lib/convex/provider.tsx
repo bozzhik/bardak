@@ -1,8 +1,5 @@
 'use client'
 
-export {api} from '../../convex/_generated/api'
-export {useQuery} from 'convex/react'
-
 import {ConvexProvider as Convex, ConvexReactClient} from 'convex/react'
 import {ReactNode} from 'react'
 
