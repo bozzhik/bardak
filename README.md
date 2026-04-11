@@ -38,6 +38,9 @@ bun --filter web dev          # только веб
 bun --filter bot dev          # только бот
 cd apps/web && npx convex dev # Convex (в отдельном терминале)
 
+# Convex Generate meta
+bun db:sync
+
 # Проверки (перед коммитом)
 bun turbo check-types         # TypeScript проверка
 bun turbo lint                # ESLint (max-warnings 0)

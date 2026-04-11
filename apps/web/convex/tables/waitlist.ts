@@ -1,4 +1,5 @@
-import {mutation} from '@convex/_generated/server'
+import {mutation, query} from '@convex/_generated/server'
+import {paginationOptsValidator} from 'convex/server'
 import {v} from 'convex/values'
 
 const TELEGRAM_USERNAME_RE = /^[a-z0-9_]{3,30}$/
@@ -39,3 +40,61 @@ export const submit = mutation({
     return {status: 'created' as const, id}
   },
 })
+
+// db-gen:base:start
+export const length = query({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query('waitlist').take(5000)
+    return {count: rows.length, isTruncated: rows.length === 5000}
+  },
+})
+
+export const list = query({
+  args: {paginationOpts: paginationOptsValidator},
+  handler: async (ctx, args) => {
+    return await ctx.db.query('waitlist').order('desc').paginate(args.paginationOpts)
+  },
+})
+
+export const getById = query({
+  args: {id: v.id('waitlist')},
+  handler: async (ctx, args) => {
+    return await ctx.db.get('waitlist', args.id)
+  },
+})
+
+export const create = mutation({
+  args: {
+    doc: v.object({
+      username: v.string(),
+      telegramLink: v.string(),
+    }),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.insert('waitlist', args.doc)
+  },
+})
+
+export const update = mutation({
+  args: {
+    id: v.id('waitlist'),
+    patch: v.object({
+      username: v.optional(v.string()),
+      telegramLink: v.optional(v.string()),
+    }),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch('waitlist', args.id, args.patch)
+    return null
+  },
+})
+
+export const remove = mutation({
+  args: {id: v.id('waitlist')},
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.id)
+    return null
+  },
+})
+// db-gen:base:end

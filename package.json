@@ -7,7 +7,13 @@
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
-    "convex": "cd apps/web && bunx convex dev"
+    "convex": "cd apps/web && bunx convex dev",
+    "convex:once": "cd apps/web && bunx convex dev --once",
+    "convex:codegen": "cd apps/web && bunx convex codegen",
+    "db:gen": "cd apps/web && node scripts/gen-db-meta.mjs",
+    "db:sync": "bun db:gen && bun convex:codegen",
+    "db:push": "bun db:gen && bun convex:once",
+    "db:dev": "bun db:sync && bun convex"
   },
   "devDependencies": {
     "prettier": "^3.7.4",
