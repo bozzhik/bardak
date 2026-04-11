@@ -9,7 +9,7 @@ import {api} from '@/lib/convex'
 import {cn} from '@/lib/utils'
 
 import Container from '~/global/container'
-import {InputGroup, InputGroupInput, InputGroupAddon, InputGroupText} from '~/ui/input-group'
+import {InputGroup, InputGroupInput, InputGroupAddon, InputGroupText} from '~/primitives/input-group'
 
 const TELEGRAM_BOT_URL = 'https://t.me/bardak_ai_bot?start=DEMO_WEBSITE'
 

@@ -4,7 +4,7 @@ import {useRender} from '@base-ui/react/use-render'
 import {cva, type VariantProps} from 'class-variance-authority'
 
 import {cn} from '@/lib/utils'
-import {Separator} from '@/components/ui/separator'
+import {Separator} from '@/components/primitives/separator'
 
 function ItemGroup({className, ...props}: React.ComponentProps<'div'>) {
   return <div role="list" data-slot="item-group" className={cn('gap-4 has-data-[size=sm]:gap-2.5 has-data-[size=xs]:gap-2 group/item-group flex w-full flex-col', className)} {...props} />

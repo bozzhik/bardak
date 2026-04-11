@@ -5,10 +5,10 @@ import './globals.css'
 import {cn} from '@/lib/utils'
 
 import {ConvexProvider} from '@/lib/convex'
-import {TooltipProvider} from '~/ui/tooltip'
+import {TooltipProvider} from '~/primitives/tooltip'
 import YandexMetrika from '~/global/analytics'
 
-import {Toaster} from '~/ui/sonner'
+import {Toaster} from '~/primitives/sonner'
 
 export default function RootLayout({
   children,
