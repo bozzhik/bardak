@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   transpilePackages: ['@repo/shared'],
 
-  typedRoutes: true,
+  // typedRoutes: true,
   logging: {browserToTerminal: true},
   images: {
     qualities: [70, 100],
