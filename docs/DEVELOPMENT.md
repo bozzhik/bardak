@@ -10,7 +10,7 @@
 | ------------ | ------------------------------------------------------------- |
 | Monorepo     | Turborepo + Bun                                               |
 | Web          | Next.js 16 (App Router, RSC)                                  |
-| Bot          | Elysia (HTTP) + Telegram-фреймворк (grammy / telegraf — TBD)  |
+| Bot          | Elysia (HTTP health/routes) + grammY                          |
 | Backend / DB | Convex (queries, mutations, actions, file storage, scheduler) |
 | UI           | Tailwind CSS v4 + shadcn/ui (base-nova) + Lucide              |
 | AI           | OpenRouter (gateway к моделям)                                |
@@ -57,8 +57,8 @@ bardak/
 │   ├── PRODUCT.md    — продуктовая спецификация
 │   ├── DEVELOPMENT.md — эта документация
 │   ├── PLAN.md       — стратегическая дорожная карта
-│   └── MVP.md         — пошаговый план реализации MVP
-├── Dockerfile        — web
+│   └── MVP.md        — пошаговый план реализации MVP
+├── Dockerfile.web    — web
 ├── Dockerfile.bot    — bot
 └── docker-compose.yml
 ```
@@ -107,12 +107,21 @@ Telegram → Bot (grammy) → ConvexClient → Convex mutations/actions → БД
 
 ## Telegram-бот
 
+### Текущий статус (ветка `bot-init`)
+
+- Поднят runtime бота: `grammy` + Elysia HTTP server (`/`, `/health`) + long-polling.
+- Реализованы команды `/start` и `/help`.
+- `/start` регистрирует/обновляет пользователя в Convex (`users`).
+- Для `message:text` реализован базовый flow: touch пользователя, логирование, обработка ошибок.
+- Поддержка webhook, media ingestion и контентные таблицы (`content/tags/pages`) ещё не завершены.
+
 ### Архитектура
 
 - Работает как отдельное приложение (`apps/bot`).
-- Получает апдейты через webhook (прод) или long-polling (dev).
+- Сейчас получает апдейты через long-polling (dev/runtime).
+- Webhook (прод) запланирован следующим шагом.
 - Сценарий: пользователь шлёт сообщение → бот парсит → вызывает Convex напрямую → отвечает пользователю.
-- Бот — long-lived process, использует `ConvexClient` для прямого соединения с Convex.
+- В текущей реализации используется `ConvexHttpClient` для прямых вызовов Convex мутаций.
 
 ### Три режима работы
 
@@ -179,6 +188,7 @@ cd apps/web && npx convex dev      # Convex (отдельный терминал
 `apps/web/.env.local` — не коммитится:
 
 - `TELEGRAM_BOT_TOKEN`
+- `BOT_RUNTIME` (`dev` | `prod`)
 - `CONVEX_DEPLOYMENT`
 - `NEXT_PUBLIC_CONVEX_URL`
 - `NEXT_PUBLIC_CONVEX_SITE_URL`

@@ -56,5 +56,5 @@
 ## Окружение
 
 - Переменные окружения: `.env.local` в `apps/web/`, **никогда не коммитить**.
-- Docker-файлы: `Dockerfile` (web), `Dockerfile.bot` (bot), `docker-compose.yml`.
+- Docker-файлы: `Dockerfile.web` (web), `Dockerfile.bot` (bot), `docker-compose.yml`.
 - Деплой: Coolify на VPS. Build-time args для `NEXT_PUBLIC_CONVEX_URL`.
