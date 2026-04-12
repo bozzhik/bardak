@@ -3,7 +3,7 @@
 import {api} from '@/lib/convex'
 import type {TableNames} from '@convex/_generated/dataModel'
 
-export const dbTables = ["demo", "waitlist"] as const
+export const dbTables = ["demo", "waitlist", "users"] as const
 export type DbTable = (typeof dbTables)[number]
 
 export const dbAdminApi = {
@@ -22,6 +22,14 @@ export const dbAdminApi = {
     create: api.tables.waitlist.create,
     update: api.tables.waitlist.update,
     remove: api.tables.waitlist.remove,
+  },
+  "users": {
+    length: api.tables.users.length,
+    list: api.tables.users.list,
+    getById: api.tables.users.getById,
+    create: api.tables.users.create,
+    update: api.tables.users.update,
+    remove: api.tables.users.remove,
   },
 } as const satisfies Record<
   DbTable,

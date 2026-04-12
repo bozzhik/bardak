@@ -9,6 +9,7 @@
  */
 
 import type * as tables_demo from "../tables/demo.js";
+import type * as tables_users from "../tables/users.js";
 import type * as tables_waitlist from "../tables/waitlist.js";
 
 import type {
@@ -19,6 +20,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   "tables/demo": typeof tables_demo;
+  "tables/users": typeof tables_users;
   "tables/waitlist": typeof tables_waitlist;
 }>;
 
