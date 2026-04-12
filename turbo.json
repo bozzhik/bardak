@@ -1,7 +1,14 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
-  "globalEnv": ["NODE_ENV", "ACCESS_KEY", "ACCESS_TOKEN_SIGNING_KEY"],
+  "globalEnv": [
+    "NODE_ENV",
+    "BOT_RUNTIME",
+    "ACCESS_KEY",
+    "ACCESS_TOKEN_SIGNING_KEY",
+    "TELEGRAM_BOT_TOKEN",
+    "NEXT_PUBLIC_CONVEX_URL"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
