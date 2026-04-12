@@ -25,7 +25,6 @@ import {Empty, EmptyDescription, EmptyHeader, EmptyTitle} from '~/primitives/emp
 import {Field, FieldContent, FieldGroup, FieldTitle} from '~/primitives/field'
 import {Input} from '~/primitives/input'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '~/primitives/select'
-import {ScrollArea} from '~/primitives/scroll-area'
 import {Spinner} from '~/primitives/spinner'
 import {Switch} from '~/primitives/switch'
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '~/primitives/table'
@@ -87,6 +86,9 @@ const dbTableUi: Record<
     cellRenderers: Record<string, CellRenderer>
   }>
 > = {
+  users: {
+    visibleFields: ['userId', 'username'],
+  },
   concepts: {
     visibleFields: ['token', 'summary', 'details', 'priority', 'status', 'tags'],
     cellRenderers: {
@@ -180,14 +182,17 @@ function DatabaseTablePageInner({slug}: {slug: string}) {
   const removeMut = useMutation(apiMod.remove as unknown as UseMutationFn)
 
   const fields = useMemo(() => Object.entries(meta.fields), [meta.fields])
-  const visibleFieldNames = useMemo(() => {
-    const fallback = Object.keys(meta.fields).slice(0, 6)
+  const orderedFieldNames = useMemo(() => {
+    const allFields = Object.keys(meta.fields)
     const custom = dbTableUi[table]?.visibleFields
-    if (!custom?.length) return fallback
-    const existing = new Set(Object.keys(meta.fields))
-    return custom.filter((f) => existing.has(f)).slice(0, 6)
+    if (!custom?.length) return allFields
+
+    const customSet = new Set(custom)
+    const prioritized = custom.filter((field) => allFields.includes(field))
+    const rest = allFields.filter((field) => !customSet.has(field))
+    return [...prioritized, ...rest]
   }, [meta.fields, table])
-  const columnNames = useMemo(() => ['_id', ...visibleFieldNames, '_creationTime'], [visibleFieldNames])
+  const columnNames = useMemo(() => ['_id', ...orderedFieldNames, '_creationTime'], [orderedFieldNames])
   const tableTitle = humanizeTableSlug(table)
 
   const [createOpen, setCreateOpen] = useState(false)
@@ -232,6 +237,9 @@ function DatabaseTablePageInner({slug}: {slug: string}) {
   const renderCell: CellRenderer = ({column, row, value}) => {
     if (column === '_id') return renderIdCell(String(row._id))
     if (column === '_creationTime') return renderCreationTimeCell(value)
+    if (value == null) {
+      return <TableCell className="text-muted-foreground/55">null</TableCell>
+    }
     const custom = cellRendererByColumn[column]
     if (custom) return <TableCell>{custom({table, column, row, value})}</TableCell>
     return <TableCell>{formatDbAdminCellValue(value)}</TableCell>
@@ -404,14 +412,16 @@ function DatabaseTablePageInner({slug}: {slug: string}) {
               </EmptyHeader>
             </Empty>
           ) : (
-            <div className="overflow-hidden rounded-xl border">
-              <Table className="text-sm">
-                <TableHeader className="bg-muted/40">
+            <div className="rounded-xl border">
+              <Table className="min-w-max text-sm">
+                <TableHeader className="bg-muted/40 h-fit">
                   <TableRow>
                     {columnNames.map((c) => (
-                      <TableHead key={c}>{c}</TableHead>
+                      <TableHead key={c} className="text-muted-foreground/80">
+                        {c}
+                      </TableHead>
                     ))}
-                    <TableHead className="w-0" />
+                    <TableHead className="sticky right-0 z-20 w-0 min-w-18 text-right text-muted-foreground/80" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -422,7 +432,7 @@ function DatabaseTablePageInner({slug}: {slug: string}) {
                         const rendered = renderCell({table, column: c, row, value})
                         return <Fragment key={c}>{rendered}</Fragment>
                       })}
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell onClick={(e) => e.stopPropagation()} className="sticky right-0 z-10">
                         <div className="flex items-center justify-end">
                           <ButtonGroup className="overflow-hidden rounded-lg border border-border bg-background">
                             <Dialog open={editRow?._id === row._id} onOpenChange={(open) => (open ? openEdit(row) : setEditRow(null))}>
@@ -571,8 +581,7 @@ function DatabaseTablePageInner({slug}: {slug: string}) {
         <DialogContent
           showCloseButton={false}
           className={cn(
-            'grid grid-rows-[auto,1fr] gap-0 overflow-hidden p-0',
-            // DialogContent base uses max-h; for an internal 1fr scroller we need an explicit height.
+            'flex flex-col gap-0 overflow-hidden p-0',
             'max-h-[min(40rem,85dvh)] xl:max-h-[min(34rem,82dvh)] sm:max-h-[90dvh]',
           )}
         >
@@ -590,7 +599,14 @@ function DatabaseTablePageInner({slug}: {slug: string}) {
             <DialogDescription className="break-all font-mono text-xs">{viewRow?._id}</DialogDescription>
           </DialogHeader>
 
-          <ScrollArea className="min-h-0 h-full px-4 py-4 sm:px-3">
+          <div
+            className={cn(
+              'overflow-y-auto overscroll-contain px-4 py-4 sm:px-3',
+              'max-h-[calc(min(40rem,85dvh)-4.5rem)]',
+              'xl:max-h-[calc(min(34rem,82dvh)-4.5rem)]',
+              'sm:max-h-[calc(90dvh-4rem)]',
+            )}
+          >
             {!viewRow ? null : (
               <FieldGroup>
                 <Field className="gap-1.25">
@@ -623,7 +639,7 @@ function DatabaseTablePageInner({slug}: {slug: string}) {
                 </Field>
               </FieldGroup>
             )}
-          </ScrollArea>
+          </div>
         </DialogContent>
       </Dialog>
     </Container>
