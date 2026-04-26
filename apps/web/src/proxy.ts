@@ -20,7 +20,7 @@ import {NextResponse} from 'next/server'
 import {SignJWT, jwtVerify} from 'jose'
 
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365
-export const ACCESS_COOKIE_NAME = 'access-token'
+export const ACCESS_COOKIE_NAME = 'access-token-bardak'
 
 type MiddlewareMatcher = string
 

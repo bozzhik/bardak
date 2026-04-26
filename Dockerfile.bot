@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# Static HTML via `serve` on port 2000 (same as bun dev in apps/bot).
+# Telegram bot runtime (Elysia + grammY) for apps/bot.
 
 FROM oven/bun:1 AS base
 WORKDIR /app
@@ -20,13 +20,13 @@ RUN bun install --frozen-lockfile
 RUN bunx turbo run build --filter=bot
 
 FROM oven/bun:1 AS runner
-WORKDIR /app/apps/bot
+WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=2000
 
-COPY --from=builder /app/apps/bot/package.json ./package.json
-COPY --from=builder /app/apps/bot/index.html ./index.html
+COPY --from=builder /app /app
+
+WORKDIR /app/apps/bot
 
 EXPOSE 2000
-# 0.0.0.0 — чтобы порт был доступен с хоста при `docker compose`
-CMD ["sh", "-c", "exec bunx --bun serve -l \"tcp://0.0.0.0:${PORT:-2000}\" ."]
+CMD ["bun", "src/index.ts"]
