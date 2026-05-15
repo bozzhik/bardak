@@ -1,13 +1,14 @@
 import {extractTagTokens} from '@repo/shared'
 
-import type {RegisterOnStartArgs, RegisterOnStartResult, SaveEntryArgs, SaveEntryResult, TouchOnTextResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
+import type {CompleteTagFlowArgs, CompleteTagFlowResult, RegisterOnStartArgs, RegisterOnStartResult, SaveEntryArgs, SaveEntryResult, TouchOnTextResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
 
-import {BOTS_NOT_SUPPORTED_MESSAGE, INVALID_CONTEXT_MESSAGE, NOT_REGISTERED_MESSAGE, SAVED_TO_INBOX_MESSAGE, START_MESSAGE, savedWithTagsMessage} from '@/bot/messages'
+import {BOTS_NOT_SUPPORTED_MESSAGE, INVALID_CONTEXT_MESSAGE, NOT_REGISTERED_MESSAGE, SAVED_TO_INBOX_MESSAGE, START_MESSAGE, TAG_FORMAT_MESSAGE, savedWithTagsMessage} from '@/bot/messages'
 import {normalizeTextMessage} from '@/telegram/normalize'
 
 export type BotDataClient = {
   registerOnStart(args: RegisterOnStartArgs): Promise<RegisterOnStartResult>
   touchOnText(args: UserIdentityPayload): Promise<TouchOnTextResult>
+  completeTagFlow(args: CompleteTagFlowArgs): Promise<CompleteTagFlowResult>
   saveEntry(args: SaveEntryArgs): Promise<SaveEntryResult>
   upsertFlow(args: UpsertFlowArgs): Promise<UpsertFlowResult>
 }
@@ -81,6 +82,20 @@ export async function handleText(input: TextFlowInput, client: BotDataClient): P
   }
 
   const tags = extractTagTokens(message.text)
+  const flow = await client.completeTagFlow({
+    userId: result.userId,
+    chatId: identity.chatId,
+    tags,
+  })
+
+  if (flow.status === 'tagged') {
+    return {type: 'reply', text: savedWithTagsMessage(tags)}
+  }
+
+  if (flow.status === 'invalid_tag') {
+    return {type: 'reply', text: TAG_FORMAT_MESSAGE}
+  }
+
   const entry = await client.saveEntry({
     userId: result.userId,
     sourceChatId: identity.chatId,

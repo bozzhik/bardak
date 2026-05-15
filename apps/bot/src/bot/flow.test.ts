@@ -127,6 +127,13 @@ describe('bot flow', () => {
         entryId: 'entries:test',
       },
     ])
+    expect(client.completeTagFlowCalls).toEqual([
+      {
+        userId: 'users:test',
+        chatId: 420,
+        tags: [],
+      },
+    ])
   })
 
   test('text messages with inline tags save a tagged entry without tag flow', async () => {
@@ -148,6 +155,53 @@ describe('bot flow', () => {
         tags: ['#покупки', '#work'],
       },
     ])
+    expect(client.upsertFlowCalls).toHaveLength(0)
+  })
+
+  test('active tag flow consumes the next hashtag message instead of saving a new entry', async () => {
+    const client = createFakeBotDataClient({
+      completeTagFlowResult: {
+        status: 'tagged',
+        flowId: 'flows:test',
+        entryId: 'entries:test',
+        tagIds: ['tags:test'],
+      },
+    })
+
+    const result = await handleText({identity: USER, messageId: 102, text: '#покупки'}, client)
+
+    expect(result).toEqual({type: 'reply', text: 'Сохранил с тегом #покупки.'})
+    expect(client.completeTagFlowCalls).toEqual([
+      {
+        userId: 'users:test',
+        chatId: 420,
+        tags: ['#покупки'],
+      },
+    ])
+    expect(client.saveEntryCalls).toHaveLength(0)
+    expect(client.upsertFlowCalls).toHaveLength(0)
+  })
+
+  test('active tag flow asks for hashtag format instead of saving invalid tag text', async () => {
+    const client = createFakeBotDataClient({
+      completeTagFlowResult: {
+        status: 'invalid_tag',
+        flowId: 'flows:test',
+        entryId: 'entries:test',
+      },
+    })
+
+    const result = await handleText({identity: USER, messageId: 103, text: 'покупки'}, client)
+
+    expect(result).toEqual({type: 'reply', text: 'Напиши тег в формате #example.'})
+    expect(client.completeTagFlowCalls).toEqual([
+      {
+        userId: 'users:test',
+        chatId: 420,
+        tags: [],
+      },
+    ])
+    expect(client.saveEntryCalls).toHaveLength(0)
     expect(client.upsertFlowCalls).toHaveLength(0)
   })
 })

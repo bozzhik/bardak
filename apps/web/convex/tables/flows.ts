@@ -1,6 +1,45 @@
+import {normalizeTagToken} from '@repo/shared'
 import {mutation, query} from '@convex/_generated/server'
+import type {MutationCtx} from '@convex/_generated/server'
+import type {Id} from '@convex/_generated/dataModel'
 import {paginationOptsValidator} from 'convex/server'
 import {v} from 'convex/values'
+
+async function ensureTag(ctx: MutationCtx, userId: Id<'users'>, rawTag: string, now: number): Promise<Id<'tags'> | null> {
+  const tag = normalizeTagToken(rawTag)
+  if (tag === null) return null
+
+  const existing = await ctx.db
+    .query('tags')
+    .withIndex('by_userId_and_slug', (q) => q.eq('userId', userId).eq('slug', tag.slug))
+    .unique()
+
+  if (existing !== null) return existing._id
+
+  return await ctx.db.insert('tags', {
+    userId,
+    name: tag.name,
+    slug: tag.slug,
+    createdAt: now,
+    updatedAt: now,
+  })
+}
+
+async function linkTag(ctx: MutationCtx, userId: Id<'users'>, entryId: Id<'entries'>, tagId: Id<'tags'>, now: number): Promise<void> {
+  const existing = await ctx.db
+    .query('entryTags')
+    .withIndex('by_userId_and_entryId_and_tagId', (q) => q.eq('userId', userId).eq('entryId', entryId).eq('tagId', tagId))
+    .unique()
+
+  if (existing !== null) return
+
+  await ctx.db.insert('entryTags', {
+    userId,
+    entryId,
+    tagId,
+    createdAt: now,
+  })
+}
 
 export const upsertActive = mutation({
   args: {
@@ -49,6 +88,77 @@ export const upsertActive = mutation({
     return {
       status: 'created' as const,
       flowId,
+    }
+  },
+})
+
+export const completeTag = mutation({
+  args: {
+    userId: v.id('users'),
+    chatId: v.number(),
+    tags: v.array(v.string()),
+  },
+  returns: v.union(
+    v.object({status: v.literal('no_active')}),
+    v.object({
+      status: v.literal('invalid_tag'),
+      flowId: v.id('flows'),
+      entryId: v.id('entries'),
+    }),
+    v.object({
+      status: v.literal('tagged'),
+      flowId: v.id('flows'),
+      entryId: v.id('entries'),
+      tagIds: v.array(v.id('tags')),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const active = await ctx.db
+      .query('flows')
+      .withIndex('by_userId_and_chatId_and_status', (q) => q.eq('userId', args.userId).eq('chatId', args.chatId).eq('status', 'active'))
+      .unique()
+
+    if (active === null) return {status: 'no_active' as const}
+
+    if (active.entryId === null) return {status: 'no_active' as const}
+
+    const now = Date.now()
+    const tagIds: Array<Id<'tags'>> = []
+    const seenTagIds = new Set<Id<'tags'>>()
+
+    for (const rawTag of args.tags) {
+      const tagId = await ensureTag(ctx, args.userId, rawTag, now)
+      if (tagId === null || seenTagIds.has(tagId)) continue
+      seenTagIds.add(tagId)
+      tagIds.push(tagId)
+    }
+
+    if (tagIds.length === 0) {
+      return {
+        status: 'invalid_tag' as const,
+        flowId: active._id,
+        entryId: active.entryId,
+      }
+    }
+
+    for (const tagId of tagIds) {
+      await linkTag(ctx, args.userId, active.entryId, tagId, now)
+    }
+
+    await ctx.db.patch(active.entryId, {
+      status: 'saved',
+      updatedAt: now,
+    })
+    await ctx.db.patch(active._id, {
+      status: 'done',
+      updatedAt: now,
+    })
+
+    return {
+      status: 'tagged' as const,
+      flowId: active._id,
+      entryId: active.entryId,
+      tagIds,
     }
   },
 })

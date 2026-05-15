@@ -58,6 +58,28 @@ type UpsertFlowResult = {
   flowId: Id<'flows'>
 }
 
+type CompleteTagFlowArgs = {
+  userId: Id<'users'>
+  chatId: number
+  tags: string[]
+}
+
+type CompleteTagFlowResult =
+  | {
+      status: 'no_active'
+    }
+  | {
+      status: 'invalid_tag'
+      flowId: Id<'flows'>
+      entryId: Id<'entries'>
+    }
+  | {
+      status: 'tagged'
+      flowId: Id<'flows'>
+      entryId: Id<'entries'>
+      tagIds: Array<Id<'tags'>>
+    }
+
 type RegisterUserArgs = {
   telegramId: number
   chatId: number
@@ -81,6 +103,7 @@ type RegisterUserResult = {
 
 const saveEntryRef = makeFunctionReference<'mutation', SaveEntryArgs, SaveEntryResult>('tables/entries:save')
 const upsertFlowRef = makeFunctionReference<'mutation', UpsertFlowArgs, UpsertFlowResult>('tables/flows:upsertActive')
+const completeTagFlowRef = makeFunctionReference<'mutation', CompleteTagFlowArgs, CompleteTagFlowResult>('tables/flows:completeTag')
 const registerUserRef = makeFunctionReference<'mutation', RegisterUserArgs, RegisterUserResult>('tables/users:registerFromTelegramStart')
 const modules = {
   '../_generated/api.ts': () => import('../_generated/api'),
@@ -212,6 +235,55 @@ describe('entries data model', () => {
     expect(second.status).toBe('replaced')
     expect(activeFlows).toHaveLength(1)
     expect(activeFlows[0]?.entryId).toBe(secondEntry.entryId)
+  })
+
+  test('completes active tag flow by linking a tag and saving the entry', async () => {
+    const t = convexTest(schema, modules)
+    const userId = await createUser(t)
+    const entry = await t.mutation(saveEntryRef, createText(userId, {sourceMessageId: 1}))
+    const flow = await t.mutation(upsertFlowRef, {userId, chatId: 2001, kind: 'tag', entryId: entry.entryId})
+
+    const result = await t.mutation(completeTagFlowRef, {userId, chatId: 2001, tags: ['#покупки']})
+    const savedEntry = await t.run((ctx) => ctx.db.get(entry.entryId))
+    const savedFlow = await t.run((ctx) => ctx.db.get(flow.flowId))
+    const links = await t.run((ctx) =>
+      ctx.db
+        .query('entryTags')
+        .withIndex('by_userId_and_entryId', (q) => q.eq('userId', userId).eq('entryId', entry.entryId))
+        .take(10),
+    )
+
+    expect(result).toMatchObject({
+      status: 'tagged',
+      flowId: flow.flowId,
+      entryId: entry.entryId,
+    })
+    expect(result.status === 'tagged' ? result.tagIds : []).toHaveLength(1)
+    expect(savedEntry?.status).toBe('saved')
+    expect(savedFlow?.status).toBe('done')
+    expect(links).toHaveLength(1)
+
+    const second = await t.mutation(completeTagFlowRef, {userId, chatId: 2001, tags: ['#ещё']})
+    expect(second).toEqual({status: 'no_active'})
+  })
+
+  test('keeps active tag flow open when the next text has no hashtag', async () => {
+    const t = convexTest(schema, modules)
+    const userId = await createUser(t)
+    const entry = await t.mutation(saveEntryRef, createText(userId, {sourceMessageId: 1}))
+    const flow = await t.mutation(upsertFlowRef, {userId, chatId: 2001, kind: 'tag', entryId: entry.entryId})
+
+    const result = await t.mutation(completeTagFlowRef, {userId, chatId: 2001, tags: []})
+    const savedEntry = await t.run((ctx) => ctx.db.get(entry.entryId))
+    const savedFlow = await t.run((ctx) => ctx.db.get(flow.flowId))
+
+    expect(result).toEqual({
+      status: 'invalid_tag',
+      flowId: flow.flowId,
+      entryId: entry.entryId,
+    })
+    expect(savedEntry?.status).toBe('inbox')
+    expect(savedFlow?.status).toBe('active')
   })
 
   test('stores unsupported Telegram messages with typed metadata for later description', async () => {

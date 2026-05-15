@@ -6,11 +6,12 @@ import {BOTS_NOT_SUPPORTED_MESSAGE, HELP_MESSAGE, INTERNAL_ERROR_MESSAGE, INVALI
 import {env} from '@/config/env'
 import {getUserIdentity} from '@/bot/context'
 import {handleStart, handleText, readStartPayload} from '@/bot/flow'
-import {incrementErrorCounter, recordBotEvent, registerOnStart, saveEntry, touchOnText, upsertFlow} from '@/convex/client'
+import {completeTagFlow, incrementErrorCounter, recordBotEvent, registerOnStart, saveEntry, touchOnText, upsertFlow} from '@/convex/client'
 
 const botDataClient = {
   registerOnStart,
   touchOnText,
+  completeTagFlow,
   saveEntry,
   upsertFlow,
 }

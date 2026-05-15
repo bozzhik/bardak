@@ -69,6 +69,16 @@ export type UpsertFlowResult = {
 
 export const upsertFlowRef = makeFunctionReference<'mutation', UpsertFlowArgs, UpsertFlowResult>('tables/flows:upsertActive')
 
+export type CompleteTagFlowArgs = {
+  userId: string
+  chatId: number
+  tags: string[]
+}
+
+export type CompleteTagFlowResult = {status: 'no_active'} | {status: 'invalid_tag'; flowId: string; entryId: string} | {status: 'tagged'; flowId: string; entryId: string; tagIds: string[]}
+
+export const completeTagFlowRef = makeFunctionReference<'mutation', CompleteTagFlowArgs, CompleteTagFlowResult>('tables/flows:completeTag')
+
 export type IncrementErrorCounterArgs = {
   telegramId: number
 }
