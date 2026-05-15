@@ -1,19 +1,24 @@
 import {type Bot, type Context} from 'grammy'
 
 import type {RecordBotEventArgs, UserIdentityPayload} from '@/convex/functions'
-import {BOTS_NOT_SUPPORTED_MESSAGE, HELP_MESSAGE, INTERNAL_ERROR_MESSAGE, INVALID_CONTEXT_MESSAGE, NOT_REGISTERED_MESSAGE} from '@/bot/messages'
+import {BOTS_NOT_SUPPORTED_MESSAGE, HELP_MESSAGE, INTERNAL_ERROR_MESSAGE, INVALID_CONTEXT_MESSAGE, NOT_REGISTERED_MESSAGE, TAG_DELETE_USAGE_MESSAGE, TAG_NEW_USAGE_MESSAGE, TAG_RENAME_USAGE_MESSAGE} from '@/bot/messages'
 
 import {env} from '@/config/env'
 import {getUserIdentity} from '@/bot/context'
-import {handleStart, handleTags, handleText, readStartPayload} from '@/bot/flow'
-import {completeTagFlow, incrementErrorCounter, listTags, recordBotEvent, registerOnStart, saveEntry, touchOnCommand, touchOnText, upsertFlow} from '@/convex/client'
+import {handleCallback, handleStart, handleTagDelete, handleTagNew, handleTagRename, handleTags, handleText, readStartPayload, type ReplyButton, type ReplyResult} from '@/bot/flow'
+import {completeTagFlow, completeTagFlowById, ensureTag, findTag, incrementErrorCounter, listTags, recordBotEvent, registerOnStart, removeTag, renameTag, saveEntry, touchOnCommand, touchOnText, upsertFlow} from '@/convex/client'
 
 const botDataClient = {
   registerOnStart,
   touchOnText,
   touchOnCommand,
   listTags,
+  ensureTag,
+  renameTag,
+  findTag,
+  removeTag,
   completeTagFlow,
+  completeTagFlowById,
   saveEntry,
   upsertFlow,
 }
@@ -23,8 +28,29 @@ function withRuntimeLabel(text: string): string {
   return `${text}\n\n[${env.runtime}]`
 }
 
-async function reply(ctx: Context, text: string): Promise<void> {
-  await ctx.reply(withRuntimeLabel(text))
+function toReplyMarkup(buttons: ReplyButton[][]): {inline_keyboard: Array<Array<{text: string; callback_data: string}>>} {
+  return {
+    inline_keyboard: buttons.map((row) => row.map((button) => ({text: button.text, callback_data: button.data}))),
+  }
+}
+
+async function reply(ctx: Context, text: string, buttons?: ReplyButton[][]): Promise<void> {
+  if (buttons === undefined) {
+    await ctx.reply(withRuntimeLabel(text))
+    return
+  }
+
+  await ctx.reply(withRuntimeLabel(text), {
+    reply_markup: toReplyMarkup(buttons),
+  })
+}
+
+async function replyWithResult(ctx: Context, result: ReplyResult): Promise<void> {
+  await reply(ctx, result.text, result.buttons)
+}
+
+function isRejectedText(text: string): boolean {
+  return text === INVALID_CONTEXT_MESSAGE || text === BOTS_NOT_SUPPORTED_MESSAGE || text === NOT_REGISTERED_MESSAGE || text === TAG_NEW_USAGE_MESSAGE || text === TAG_RENAME_USAGE_MESSAGE || text === TAG_DELETE_USAGE_MESSAGE
 }
 
 async function safelyIncrementErrorCounter(ctx: Context): Promise<void> {
@@ -98,7 +124,7 @@ export function registerBotHandlers(bot: Bot): void {
           reason: identity === null ? 'invalid_context' : identity.isBotAccount ? 'bot_account' : null,
         }),
       })
-      await reply(ctx, result.text)
+      await replyWithResult(ctx, result)
     } catch (error) {
       console.error(`${env.logPrefix} command=/start failed`, error)
       await safelyRecordBotEvent({
@@ -144,14 +170,14 @@ export function registerBotHandlers(bot: Bot): void {
         ...getEventActor(identity),
         kind: 'command',
         action: 'tags',
-        status: result.text === INVALID_CONTEXT_MESSAGE || result.text === BOTS_NOT_SUPPORTED_MESSAGE || result.text === NOT_REGISTERED_MESSAGE ? 'rejected' : 'ok',
+        status: isRejectedText(result.text) ? 'rejected' : 'ok',
         command: '/tags',
         context: getEventContext(ctx, {
           textLength: ctx.message?.text?.length ?? null,
           reason: result.text === INVALID_CONTEXT_MESSAGE ? 'invalid_context' : result.text === BOTS_NOT_SUPPORTED_MESSAGE ? 'bot_account' : result.text === NOT_REGISTERED_MESSAGE ? 'not_registered' : null,
         }),
       })
-      await reply(ctx, result.text)
+      await replyWithResult(ctx, result)
     } catch (error) {
       console.error(`${env.logPrefix} command=/tags failed`, error)
       await safelyRecordBotEvent({
@@ -160,6 +186,105 @@ export function registerBotHandlers(bot: Bot): void {
         action: 'tags_failed',
         status: 'error',
         command: '/tags',
+        context: getEventContext(ctx, {textLength: ctx.message?.text?.length ?? null, error, reason: 'handler_failed'}),
+      })
+      await safelyIncrementErrorCounter(ctx)
+      await reply(ctx, INTERNAL_ERROR_MESSAGE)
+    }
+  })
+
+  bot.command('tag_new', async (ctx) => {
+    const identity = getUserIdentity(ctx)
+    if (identity !== null && !identity.isBotAccount) {
+      logHandledCommand('/tag_new', identity)
+    }
+
+    try {
+      const result = await handleTagNew({identity, tag: readStartPayload(ctx.match)}, botDataClient)
+      await safelyRecordBotEvent({
+        ...getEventActor(identity),
+        kind: 'command',
+        action: 'tag_new',
+        status: isRejectedText(result.text) ? 'rejected' : 'ok',
+        command: '/tag_new',
+        context: getEventContext(ctx, {
+          textLength: ctx.message?.text?.length ?? null,
+          reason: result.text === INVALID_CONTEXT_MESSAGE ? 'invalid_context' : result.text === BOTS_NOT_SUPPORTED_MESSAGE ? 'bot_account' : result.text === NOT_REGISTERED_MESSAGE ? 'not_registered' : result.text === TAG_NEW_USAGE_MESSAGE ? 'invalid_tag' : null,
+        }),
+      })
+      await replyWithResult(ctx, result)
+    } catch (error) {
+      console.error(`${env.logPrefix} command=/tag_new failed`, error)
+      await safelyRecordBotEvent({
+        ...getEventActor(identity),
+        kind: 'error',
+        action: 'tag_new_failed',
+        status: 'error',
+        command: '/tag_new',
+        context: getEventContext(ctx, {textLength: ctx.message?.text?.length ?? null, error, reason: 'handler_failed'}),
+      })
+      await safelyIncrementErrorCounter(ctx)
+      await reply(ctx, INTERNAL_ERROR_MESSAGE)
+    }
+  })
+
+  bot.command('tag_rename', async (ctx) => {
+    const identity = getUserIdentity(ctx)
+    if (identity !== null && !identity.isBotAccount) {
+      logHandledCommand('/tag_rename', identity)
+    }
+
+    try {
+      const result = await handleTagRename({identity, payload: readStartPayload(ctx.match)}, botDataClient)
+      await safelyRecordBotEvent({
+        ...getEventActor(identity),
+        kind: 'command',
+        action: 'tag_rename',
+        status: isRejectedText(result.text) ? 'rejected' : 'ok',
+        command: '/tag_rename',
+        context: getEventContext(ctx, {textLength: ctx.message?.text?.length ?? null, reason: isRejectedText(result.text) ? 'rejected' : null}),
+      })
+      await replyWithResult(ctx, result)
+    } catch (error) {
+      console.error(`${env.logPrefix} command=/tag_rename failed`, error)
+      await safelyRecordBotEvent({
+        ...getEventActor(identity),
+        kind: 'error',
+        action: 'tag_rename_failed',
+        status: 'error',
+        command: '/tag_rename',
+        context: getEventContext(ctx, {textLength: ctx.message?.text?.length ?? null, error, reason: 'handler_failed'}),
+      })
+      await safelyIncrementErrorCounter(ctx)
+      await reply(ctx, INTERNAL_ERROR_MESSAGE)
+    }
+  })
+
+  bot.command('tag_delete', async (ctx) => {
+    const identity = getUserIdentity(ctx)
+    if (identity !== null && !identity.isBotAccount) {
+      logHandledCommand('/tag_delete', identity)
+    }
+
+    try {
+      const result = await handleTagDelete({identity, tag: readStartPayload(ctx.match)}, botDataClient)
+      await safelyRecordBotEvent({
+        ...getEventActor(identity),
+        kind: 'command',
+        action: 'tag_delete',
+        status: isRejectedText(result.text) ? 'rejected' : 'ok',
+        command: '/tag_delete',
+        context: getEventContext(ctx, {textLength: ctx.message?.text?.length ?? null, reason: isRejectedText(result.text) ? 'rejected' : null}),
+      })
+      await replyWithResult(ctx, result)
+    } catch (error) {
+      console.error(`${env.logPrefix} command=/tag_delete failed`, error)
+      await safelyRecordBotEvent({
+        ...getEventActor(identity),
+        kind: 'error',
+        action: 'tag_delete_failed',
+        status: 'error',
+        command: '/tag_delete',
         context: getEventContext(ctx, {textLength: ctx.message?.text?.length ?? null, error, reason: 'handler_failed'}),
       })
       await safelyIncrementErrorCounter(ctx)
@@ -205,7 +330,7 @@ export function registerBotHandlers(bot: Bot): void {
           reason: result.text === INVALID_CONTEXT_MESSAGE ? 'invalid_context' : result.text === BOTS_NOT_SUPPORTED_MESSAGE ? 'bot_account' : result.text === NOT_REGISTERED_MESSAGE ? 'not_registered' : null,
         }),
       })
-      await reply(ctx, result.text)
+      await replyWithResult(ctx, result)
     } catch (error) {
       console.error(`${env.logPrefix} message:text handler failed`, error)
       await safelyRecordBotEvent({
@@ -217,6 +342,36 @@ export function registerBotHandlers(bot: Bot): void {
         context: getEventContext(ctx, {textLength: text.length, error, reason: 'handler_failed'}),
       })
       await safelyIncrementErrorCounter(ctx)
+      await reply(ctx, INTERNAL_ERROR_MESSAGE)
+    }
+  })
+
+  bot.on('callback_query:data', async (ctx) => {
+    const identity = getUserIdentity(ctx)
+    const data = ctx.callbackQuery.data
+
+    try {
+      const result = await handleCallback({identity, data}, botDataClient)
+      await safelyRecordBotEvent({
+        ...getEventActor(identity),
+        kind: 'command',
+        action: 'callback',
+        status: isRejectedText(result.text) ? 'rejected' : 'ok',
+        context: getEventContext(ctx, {reason: isRejectedText(result.text) ? 'rejected' : null}),
+      })
+      await ctx.answerCallbackQuery()
+      await replyWithResult(ctx, result)
+    } catch (error) {
+      console.error(`${env.logPrefix} callback handler failed`, error)
+      await safelyRecordBotEvent({
+        ...getEventActor(identity),
+        kind: 'error',
+        action: 'callback_failed',
+        status: 'error',
+        context: getEventContext(ctx, {error, reason: 'handler_failed'}),
+      })
+      await safelyIncrementErrorCounter(ctx)
+      await ctx.answerCallbackQuery()
       await reply(ctx, INTERNAL_ERROR_MESSAGE)
     }
   })

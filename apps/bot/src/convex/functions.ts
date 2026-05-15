@@ -57,6 +57,45 @@ type ListTagsQueryResult = Array<{
 
 export const listTagsRef = makeFunctionReference<'query', ListTagsArgs, ListTagsQueryResult>('tables/tags:listByUser')
 
+export type EnsureTagArgs = {
+  userId: string
+  tag: string
+}
+
+export type EnsureTagResult = {status: 'created' | 'existing'; tagId: string} | {status: 'invalid'}
+
+export const ensureTagRef = makeFunctionReference<'mutation', EnsureTagArgs, EnsureTagResult>('tables/tags:ensure')
+
+export type RenameTagArgs = {
+  userId: string
+  fromTag: string
+  toTag: string
+}
+
+export type RenameTagResult = {status: 'renamed'; tagId: string; name: string; slug: string} | {status: 'source_missing' | 'target_exists' | 'invalid'}
+
+export const renameTagRef = makeFunctionReference<'mutation', RenameTagArgs, RenameTagResult>('tables/tags:rename')
+
+export type FindTagArgs = {
+  userId: string
+  tag: string
+}
+
+export type FindTagResult = {status: 'found'; tag: {id: string; name: string; slug: string}} | {status: 'missing'} | {status: 'invalid'}
+
+type FindTagQueryResult = {status: 'found'; tag: {id: string; name: string; slug: string}} | {status: 'missing'} | {status: 'invalid'}
+
+export const findTagRef = makeFunctionReference<'query', FindTagArgs, FindTagQueryResult>('tables/tags:findBySlug')
+
+export type RemoveTagArgs = {
+  userId: string
+  tagId: string
+}
+
+export type RemoveTagResult = {status: 'deleted'; tagName: string; linkCount: number} | {status: 'missing'}
+
+export const removeTagRef = makeFunctionReference<'mutation', RemoveTagArgs, RemoveTagResult>('tables/tags:removeForUser')
+
 export type SaveEntryArgs = {
   userId: string
   sourceChatId: number
@@ -101,6 +140,16 @@ export type CompleteTagFlowArgs = {
 export type CompleteTagFlowResult = {status: 'no_active'} | {status: 'invalid_tag'; flowId: string; entryId: string} | {status: 'tagged'; flowId: string; entryId: string; tagIds: string[]}
 
 export const completeTagFlowRef = makeFunctionReference<'mutation', CompleteTagFlowArgs, CompleteTagFlowResult>('tables/flows:completeTag')
+
+export type CompleteTagFlowByIdArgs = {
+  userId: string
+  chatId: number
+  tagId: string
+}
+
+export type CompleteTagFlowByIdResult = {status: 'no_active'} | {status: 'missing_tag'} | {status: 'tagged'; flowId: string; entryId: string; tagId: string; tagName: string}
+
+export const completeTagFlowByIdRef = makeFunctionReference<'mutation', CompleteTagFlowByIdArgs, CompleteTagFlowByIdResult>('tables/flows:completeTagById')
 
 export type IncrementErrorCounterArgs = {
   telegramId: number

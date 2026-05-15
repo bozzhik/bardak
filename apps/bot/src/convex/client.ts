@@ -1,7 +1,7 @@
 import {ConvexHttpClient} from 'convex/browser'
 
 import {env} from '@/config/env'
-import {completeTagFlowRef, type CompleteTagFlowArgs, type CompleteTagFlowResult, incrementErrorCounterRef, type IncrementErrorCounterResult, listTagsRef, type ListTagsArgs, type ListTagsResult, recordBotEventRef, type RecordBotEventArgs, type RecordBotEventResult, registerOnStartRef, type RegisterOnStartArgs, type RegisterOnStartResult, saveEntryRef, type SaveEntryArgs, type SaveEntryResult, touchOnCommandRef, type TouchOnCommandResult, touchOnTextRef, type TouchOnTextResult, type UpsertFlowArgs, type UpsertFlowResult, type UserIdentityPayload, upsertFlowRef} from '@/convex/functions'
+import {completeTagFlowByIdRef, type CompleteTagFlowByIdArgs, type CompleteTagFlowByIdResult, completeTagFlowRef, type CompleteTagFlowArgs, type CompleteTagFlowResult, ensureTagRef, type EnsureTagArgs, type EnsureTagResult, findTagRef, type FindTagArgs, type FindTagResult, incrementErrorCounterRef, type IncrementErrorCounterResult, listTagsRef, type ListTagsArgs, type ListTagsResult, recordBotEventRef, type RecordBotEventArgs, type RecordBotEventResult, registerOnStartRef, type RegisterOnStartArgs, type RegisterOnStartResult, removeTagRef, type RemoveTagArgs, type RemoveTagResult, renameTagRef, type RenameTagArgs, type RenameTagResult, saveEntryRef, type SaveEntryArgs, type SaveEntryResult, touchOnCommandRef, type TouchOnCommandResult, touchOnTextRef, type TouchOnTextResult, type UpsertFlowArgs, type UpsertFlowResult, type UserIdentityPayload, upsertFlowRef} from '@/convex/functions'
 
 const client = new ConvexHttpClient(env.convexUrl)
 
@@ -26,6 +26,22 @@ export async function listTags(args: ListTagsArgs): Promise<ListTagsResult> {
   }))
 }
 
+export async function ensureTag(args: EnsureTagArgs): Promise<EnsureTagResult> {
+  return await client.mutation(ensureTagRef, args)
+}
+
+export async function renameTag(args: RenameTagArgs): Promise<RenameTagResult> {
+  return await client.mutation(renameTagRef, args)
+}
+
+export async function findTag(args: FindTagArgs): Promise<FindTagResult> {
+  return await client.query(findTagRef, args)
+}
+
+export async function removeTag(args: RemoveTagArgs): Promise<RemoveTagResult> {
+  return await client.mutation(removeTagRef, args)
+}
+
 export async function saveEntry(args: SaveEntryArgs): Promise<SaveEntryResult> {
   return await client.mutation(saveEntryRef, args)
 }
@@ -36,6 +52,10 @@ export async function upsertFlow(args: UpsertFlowArgs): Promise<UpsertFlowResult
 
 export async function completeTagFlow(args: CompleteTagFlowArgs): Promise<CompleteTagFlowResult> {
   return await client.mutation(completeTagFlowRef, args)
+}
+
+export async function completeTagFlowById(args: CompleteTagFlowByIdArgs): Promise<CompleteTagFlowByIdResult> {
+  return await client.mutation(completeTagFlowByIdRef, args)
 }
 
 export async function incrementErrorCounter(telegramId: number): Promise<IncrementErrorCounterResult> {

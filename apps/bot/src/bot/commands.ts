@@ -13,4 +13,16 @@ export const botCommands: BotCommand[] = [
     command: 'tags',
     description: 'Показать теги',
   },
+  {
+    command: 'tag_new',
+    description: 'Создать тег',
+  },
+  {
+    command: 'tag_rename',
+    description: 'Переименовать тег',
+  },
+  {
+    command: 'tag_delete',
+    description: 'Удалить тег',
+  },
 ]

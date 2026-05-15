@@ -4,7 +4,7 @@ import type {UserIdentityPayload} from '@/convex/functions'
 
 import {BOTS_NOT_SUPPORTED_MESSAGE, INVALID_CONTEXT_MESSAGE, NOT_REGISTERED_MESSAGE, START_MESSAGE} from '@/bot/messages'
 import {createFakeBotDataClient} from '@/convex/fake-client'
-import {handleStart, handleTags, handleText, readStartPayload} from '@/bot/flow'
+import {handleCallback, handleStart, handleTagDelete, handleTagNew, handleTagRename, handleTags, handleText, readStartPayload, tagDeleteCancelCallback, tagDeleteConfirmCallback, tagPickCallback} from '@/bot/flow'
 
 const USER: UserIdentityPayload = {
   telegramId: 42,
@@ -136,6 +136,24 @@ describe('bot flow', () => {
     ])
   })
 
+  test('text messages without tags offer existing tags as callback buttons', async () => {
+    const client = createFakeBotDataClient({
+      listTagsResult: [
+        {id: 'tags:work', name: 'work', slug: 'work'},
+        {id: 'tags:home', name: 'home', slug: 'home'},
+      ],
+    })
+
+    const result = await handleText({identity: USER, messageId: 100, text: 'hello'}, client)
+
+    expect(result).toEqual({
+      type: 'reply',
+      text: 'Сохранил во входящие. Напиши тег в формате #example.',
+      buttons: [[{text: '#work', data: 'tag:pick:tags:work'}], [{text: '#home', data: 'tag:pick:tags:home'}]],
+    })
+    expect(client.listTagsCalls).toEqual([{userId: 'users:test', limit: 8}])
+  })
+
   test('text messages with inline tags save a tagged entry without tag flow', async () => {
     const client = createFakeBotDataClient()
 
@@ -239,5 +257,143 @@ describe('bot flow', () => {
 
     expect(result).toEqual({type: 'reply', text: ['Твои теги:', '', '#work', '#покупки'].join('\n')})
     expect(client.listTagsCalls).toEqual([{userId: 'users:test', limit: 50}])
+  })
+
+  test('/tag_new asks unregistered users to run /start', async () => {
+    const client = createFakeBotDataClient({
+      touchCommandResult: {status: 'not_registered'},
+    })
+
+    const result = await handleTagNew({identity: USER, tag: '#work'}, client)
+
+    expect(result).toEqual({type: 'reply', text: NOT_REGISTERED_MESSAGE})
+    expect(client.touchCommandCalls).toEqual([USER])
+    expect(client.ensureTagCalls).toHaveLength(0)
+  })
+
+  test('/tag_new asks for hashtag format when payload is missing or invalid', async () => {
+    const client = createFakeBotDataClient()
+
+    const missing = await handleTagNew({identity: USER, tag: null}, client)
+    const invalid = await handleTagNew({identity: USER, tag: 'work'}, client)
+
+    expect(missing).toEqual({type: 'reply', text: 'Напиши тег в формате /tag_new #example.'})
+    expect(invalid).toEqual({type: 'reply', text: 'Напиши тег в формате /tag_new #example.'})
+    expect(client.touchCommandCalls).toEqual([USER, USER])
+    expect(client.ensureTagCalls).toHaveLength(0)
+  })
+
+  test('/tag_new creates a normalized tag', async () => {
+    const client = createFakeBotDataClient()
+
+    const result = await handleTagNew({identity: USER, tag: '#Work'}, client)
+
+    expect(result).toEqual({type: 'reply', text: 'Создал тег #work.'})
+    expect(client.ensureTagCalls).toEqual([{userId: 'users:test', tag: '#Work'}])
+  })
+
+  test('/tag_new reports an existing normalized tag without creating a duplicate', async () => {
+    const client = createFakeBotDataClient({
+      ensureTagResult: {
+        status: 'existing',
+        tagId: 'tags:work',
+      },
+    })
+
+    const result = await handleTagNew({identity: USER, tag: '#Work'}, client)
+
+    expect(result).toEqual({type: 'reply', text: 'Тег #work уже есть.'})
+    expect(client.ensureTagCalls).toEqual([{userId: 'users:test', tag: '#Work'}])
+  })
+
+  test('/tag_rename renames a tag', async () => {
+    const client = createFakeBotDataClient()
+
+    const result = await handleTagRename({identity: USER, payload: '#Work #Home'}, client)
+
+    expect(result).toEqual({type: 'reply', text: 'Переименовал #work в #home.'})
+    expect(client.renameTagCalls).toEqual([{userId: 'users:test', fromTag: '#Work', toTag: '#Home'}])
+  })
+
+  test('/tag_rename rejects missing, invalid, and duplicate target tags', async () => {
+    const invalidClient = createFakeBotDataClient()
+    const duplicateClient = createFakeBotDataClient({
+      renameTagResult: {status: 'target_exists'},
+    })
+
+    const missing = await handleTagRename({identity: USER, payload: null}, invalidClient)
+    const invalid = await handleTagRename({identity: USER, payload: '#old new'}, invalidClient)
+    const duplicate = await handleTagRename({identity: USER, payload: '#old #new'}, duplicateClient)
+
+    expect(missing).toEqual({type: 'reply', text: 'Напиши в формате /tag_rename #old #new.'})
+    expect(invalid).toEqual({type: 'reply', text: 'Напиши в формате /tag_rename #old #new.'})
+    expect(duplicate).toEqual({type: 'reply', text: 'Тег #new уже есть.'})
+    expect(invalidClient.renameTagCalls).toHaveLength(0)
+    expect(duplicateClient.renameTagCalls).toEqual([{userId: 'users:test', fromTag: '#old', toTag: '#new'}])
+  })
+
+  test('/tag_delete asks for confirmation with callback buttons', async () => {
+    const client = createFakeBotDataClient({
+      findTagResult: {status: 'found', tag: {id: 'tags:work', name: 'work', slug: 'work'}},
+    })
+
+    const result = await handleTagDelete({identity: USER, tag: '#Work'}, client)
+
+    expect(result).toEqual({
+      type: 'reply',
+      text: 'Удалить тег #work? Материалы останутся.',
+      buttons: [
+        [
+          {text: 'Удалить', data: 'tag:delete:confirm:tags:work'},
+          {text: 'Отмена', data: 'tag:delete:cancel:tags:work'},
+        ],
+      ],
+    })
+    expect(client.findTagCalls).toEqual([{userId: 'users:test', tag: '#Work'}])
+  })
+
+  test('/tag_delete rejects invalid or missing tags', async () => {
+    const client = createFakeBotDataClient({
+      findTagResult: {status: 'missing'},
+    })
+
+    const invalid = await handleTagDelete({identity: USER, tag: 'work'}, client)
+    const missing = await handleTagDelete({identity: USER, tag: '#work'}, client)
+
+    expect(invalid).toEqual({type: 'reply', text: 'Напиши в формате /tag_delete #tag.'})
+    expect(missing).toEqual({type: 'reply', text: 'Тег #work не найден.'})
+    expect(client.findTagCalls).toEqual([{userId: 'users:test', tag: '#work'}])
+  })
+
+  test('tag pick callback attaches a tag to the active flow', async () => {
+    const client = createFakeBotDataClient({
+      completeTagFlowByIdResult: {
+        status: 'tagged',
+        flowId: 'flows:test',
+        entryId: 'entries:test',
+        tagId: 'tags:work',
+        tagName: 'work',
+      },
+    })
+
+    const result = await handleCallback({identity: USER, data: tagPickCallback('tags:work')}, client)
+
+    expect(result).toEqual({type: 'reply', text: 'Сохранил с тегом #work.'})
+    expect(client.completeTagFlowByIdCalls).toEqual([{userId: 'users:test', chatId: 420, tagId: 'tags:work'}])
+  })
+
+  test('tag delete callbacks confirm or cancel deletion', async () => {
+    const confirmClient = createFakeBotDataClient({
+      removeTagResult: {status: 'deleted', tagName: 'work', linkCount: 2},
+    })
+    const cancelClient = createFakeBotDataClient()
+
+    const confirmed = await handleCallback({identity: USER, data: tagDeleteConfirmCallback('tags:work')}, confirmClient)
+    const cancelled = await handleCallback({identity: USER, data: tagDeleteCancelCallback('tags:work')}, cancelClient)
+
+    expect(confirmed).toEqual({type: 'reply', text: 'Удалил тег #work.'})
+    expect(cancelled).toEqual({type: 'reply', text: 'Оставил тег.'})
+    expect(confirmClient.removeTagCalls).toEqual([{userId: 'users:test', tagId: 'tags:work'}])
+    expect(cancelClient.removeTagCalls).toHaveLength(0)
   })
 })

@@ -80,6 +80,24 @@ type CompleteTagFlowResult =
       tagIds: Array<Id<'tags'>>
     }
 
+type CompleteTagFlowByIdArgs = {
+  userId: Id<'users'>
+  chatId: number
+  tagId: Id<'tags'>
+}
+
+type CompleteTagFlowByIdResult =
+  | {
+      status: 'no_active' | 'missing_tag'
+    }
+  | {
+      status: 'tagged'
+      flowId: Id<'flows'>
+      entryId: Id<'entries'>
+      tagId: Id<'tags'>
+      tagName: string
+    }
+
 type RegisterUserArgs = {
   telegramId: number
   chatId: number
@@ -104,6 +122,7 @@ type RegisterUserResult = {
 const saveEntryRef = makeFunctionReference<'mutation', SaveEntryArgs, SaveEntryResult>('tables/entries:save')
 const upsertFlowRef = makeFunctionReference<'mutation', UpsertFlowArgs, UpsertFlowResult>('tables/flows:upsertActive')
 const completeTagFlowRef = makeFunctionReference<'mutation', CompleteTagFlowArgs, CompleteTagFlowResult>('tables/flows:completeTag')
+const completeTagFlowByIdRef = makeFunctionReference<'mutation', CompleteTagFlowByIdArgs, CompleteTagFlowByIdResult>('tables/flows:completeTagById')
 const registerUserRef = makeFunctionReference<'mutation', RegisterUserArgs, RegisterUserResult>('tables/users:registerFromTelegramStart')
 const modules = {
   '../_generated/api.ts': () => import('../_generated/api'),
@@ -284,6 +303,43 @@ describe('entries data model', () => {
     })
     expect(savedEntry?.status).toBe('inbox')
     expect(savedFlow?.status).toBe('active')
+  })
+
+  test('completes active tag flow from a tag callback', async () => {
+    const t = convexTest(schema, modules)
+    const userId = await createUser(t)
+    const entry = await t.mutation(saveEntryRef, createText(userId, {sourceMessageId: 1}))
+    const flow = await t.mutation(upsertFlowRef, {userId, chatId: 2001, kind: 'tag', entryId: entry.entryId})
+    const tagId = await t.run((ctx) =>
+      ctx.db.insert('tags', {
+        userId,
+        name: 'work',
+        slug: 'work',
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    )
+
+    const result = await t.mutation(completeTagFlowByIdRef, {userId, chatId: 2001, tagId})
+    const savedEntry = await t.run((ctx) => ctx.db.get(entry.entryId))
+    const savedFlow = await t.run((ctx) => ctx.db.get(flow.flowId))
+    const links = await t.run((ctx) =>
+      ctx.db
+        .query('entryTags')
+        .withIndex('by_userId_and_entryId_and_tagId', (q) => q.eq('userId', userId).eq('entryId', entry.entryId).eq('tagId', tagId))
+        .take(10),
+    )
+
+    expect(result).toEqual({
+      status: 'tagged',
+      flowId: flow.flowId,
+      entryId: entry.entryId,
+      tagId,
+      tagName: 'work',
+    })
+    expect(savedEntry?.status).toBe('saved')
+    expect(savedFlow?.status).toBe('done')
+    expect(links).toHaveLength(1)
   })
 
   test('stores unsupported Telegram messages with typed metadata for later description', async () => {
