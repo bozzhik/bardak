@@ -56,4 +56,4 @@ docker build -t bardak-web .  # только web
 
 ---
 
-Документация: [`docs/PRODUCT.md`](./docs/PRODUCT.md) · [`docs/DEVELOPMENT.md`](./docs/DEVELOPMENT.md) · [`docs/PLAN.md`](./docs/PLAN.md) · [`docs/MVP.md`](./docs/MVP.md)
+Документация: [`docs/01-product.md`](./docs/01-product.md) · [`docs/02-development.md`](./docs/02-development.md) · [`docs/03-plan.md`](./docs/03-plan.md) · [`docs/04-bot.md`](./docs/04-bot.md)
