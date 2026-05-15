@@ -63,7 +63,7 @@ describe('bot flow', () => {
   test('text commands are ignored as capturable messages', async () => {
     const client = createFakeBotDataClient()
 
-    const result = await handleText({identity: USER, text: '/start again'}, client)
+    const result = await handleText({identity: USER, messageId: 1, text: '/start again'}, client)
 
     expect(result).toEqual({type: 'ignored_command', command: '/start'})
     expect(client.touchCalls).toHaveLength(0)
@@ -72,7 +72,7 @@ describe('bot flow', () => {
   test('text messages reject missing user or chat context', async () => {
     const client = createFakeBotDataClient()
 
-    const result = await handleText({identity: null, text: 'hello'}, client)
+    const result = await handleText({identity: null, messageId: 1, text: 'hello'}, client)
 
     expect(result).toEqual({type: 'reply', text: INVALID_CONTEXT_MESSAGE})
     expect(client.touchCalls).toHaveLength(0)
@@ -81,7 +81,7 @@ describe('bot flow', () => {
   test('text messages reject bot accounts', async () => {
     const client = createFakeBotDataClient()
 
-    const result = await handleText({identity: {...USER, isBotAccount: true}, text: 'hello'}, client)
+    const result = await handleText({identity: {...USER, isBotAccount: true}, messageId: 1, text: 'hello'}, client)
 
     expect(result).toEqual({type: 'reply', text: BOTS_NOT_SUPPORTED_MESSAGE})
     expect(client.touchCalls).toHaveLength(0)
@@ -92,18 +92,62 @@ describe('bot flow', () => {
       touchResult: {status: 'not_registered'},
     })
 
-    const result = await handleText({identity: USER, text: 'hello'}, client)
+    const result = await handleText({identity: USER, messageId: 1, text: 'hello'}, client)
 
     expect(result).toEqual({type: 'reply', text: NOT_REGISTERED_MESSAGE})
     expect(client.touchCalls).toEqual([USER])
+    expect(client.saveEntryCalls).toHaveLength(0)
   })
 
-  test('text messages return the current draft reply for registered users', async () => {
+  test('text messages without tags save an inbox entry and start tag flow', async () => {
     const client = createFakeBotDataClient()
 
-    const result = await handleText({identity: USER, text: 'hello'}, client)
+    const result = await handleText({identity: USER, messageId: 100, text: 'hello'}, client)
 
-    expect(result).toEqual({type: 'reply', text: 'hello'})
+    expect(result).toEqual({type: 'reply', text: 'Сохранил во входящие. Напиши тег в формате #example.'})
     expect(client.touchCalls).toEqual([USER])
+    expect(client.saveEntryCalls).toEqual([
+      {
+        userId: 'users:test',
+        sourceChatId: 420,
+        sourceMessageId: 100,
+        kind: 'text',
+        text: 'hello',
+        description: null,
+        descriptionSource: 'text',
+        url: null,
+        tags: [],
+      },
+    ])
+    expect(client.upsertFlowCalls).toEqual([
+      {
+        userId: 'users:test',
+        chatId: 420,
+        kind: 'tag',
+        entryId: 'entries:test',
+      },
+    ])
+  })
+
+  test('text messages with inline tags save a tagged entry without tag flow', async () => {
+    const client = createFakeBotDataClient()
+
+    const result = await handleText({identity: USER, messageId: 101, text: 'купить переходник #покупки #work'}, client)
+
+    expect(result).toEqual({type: 'reply', text: 'Сохранил с тегами #покупки #work.'})
+    expect(client.saveEntryCalls).toEqual([
+      {
+        userId: 'users:test',
+        sourceChatId: 420,
+        sourceMessageId: 101,
+        kind: 'text',
+        text: 'купить переходник #покупки #work',
+        description: null,
+        descriptionSource: 'text',
+        url: null,
+        tags: ['#покупки', '#work'],
+      },
+    ])
+    expect(client.upsertFlowCalls).toHaveLength(0)
   })
 })

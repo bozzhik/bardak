@@ -1,1 +1,1 @@
-export {normalizeTagToken} from './tags.js'
+export {extractTagTokens, normalizeTagToken} from './tags.js'

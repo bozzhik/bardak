@@ -1,11 +1,15 @@
-import type {RegisterOnStartArgs, RegisterOnStartResult, TouchOnTextResult, UserIdentityPayload} from '@/convex/functions'
+import {extractTagTokens} from '@repo/shared'
 
-import {BOTS_NOT_SUPPORTED_MESSAGE, INVALID_CONTEXT_MESSAGE, NOT_REGISTERED_MESSAGE, START_MESSAGE} from '@/bot/messages'
+import type {RegisterOnStartArgs, RegisterOnStartResult, SaveEntryArgs, SaveEntryResult, TouchOnTextResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
+
+import {BOTS_NOT_SUPPORTED_MESSAGE, INVALID_CONTEXT_MESSAGE, NOT_REGISTERED_MESSAGE, SAVED_TO_INBOX_MESSAGE, START_MESSAGE, savedWithTagsMessage} from '@/bot/messages'
 import {normalizeTextMessage} from '@/telegram/normalize'
 
 export type BotDataClient = {
   registerOnStart(args: RegisterOnStartArgs): Promise<RegisterOnStartResult>
   touchOnText(args: UserIdentityPayload): Promise<TouchOnTextResult>
+  saveEntry(args: SaveEntryArgs): Promise<SaveEntryResult>
+  upsertFlow(args: UpsertFlowArgs): Promise<UpsertFlowResult>
 }
 
 export type ReplyResult = {
@@ -27,6 +31,7 @@ export type StartFlowInput = {
 
 export type TextFlowInput = {
   identity: UserIdentityPayload | null
+  messageId: number
   text: string
 }
 
@@ -75,5 +80,29 @@ export async function handleText(input: TextFlowInput, client: BotDataClient): P
     return {type: 'reply', text: NOT_REGISTERED_MESSAGE}
   }
 
-  return {type: 'reply', text: message.text}
+  const tags = extractTagTokens(message.text)
+  const entry = await client.saveEntry({
+    userId: result.userId,
+    sourceChatId: identity.chatId,
+    sourceMessageId: input.messageId,
+    kind: 'text',
+    text: message.text,
+    description: null,
+    descriptionSource: 'text',
+    url: null,
+    tags,
+  })
+
+  if (entry.entryStatus === 'inbox') {
+    await client.upsertFlow({
+      userId: result.userId,
+      chatId: identity.chatId,
+      kind: 'tag',
+      entryId: entry.entryId,
+    })
+
+    return {type: 'reply', text: SAVED_TO_INBOX_MESSAGE}
+  }
+
+  return {type: 'reply', text: savedWithTagsMessage(tags)}
 }

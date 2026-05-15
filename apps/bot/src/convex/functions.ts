@@ -34,6 +34,41 @@ export type TouchOnTextResult = {status: 'updated'; userId: string} | {status: '
 
 export const touchOnTextRef = makeFunctionReference<'mutation', UserIdentityPayload, TouchOnTextResult>('tables/users:touchFromTelegramText')
 
+export type SaveEntryArgs = {
+  userId: string
+  sourceChatId: number
+  sourceMessageId: number
+  kind: 'text' | 'link' | 'photo' | 'voice' | 'audio' | 'document' | 'video' | 'sticker' | 'unsupported'
+  text: string | null
+  description: string | null
+  descriptionSource?: 'none' | 'text' | 'caption' | 'user' | 'ai'
+  url: string | null
+  tags: string[]
+}
+
+export type SaveEntryResult = {
+  status: 'created' | 'duplicate'
+  entryId: string
+  entryStatus: 'inbox' | 'saved' | 'archived'
+  tagIds: string[]
+}
+
+export const saveEntryRef = makeFunctionReference<'mutation', SaveEntryArgs, SaveEntryResult>('tables/entries:save')
+
+export type UpsertFlowArgs = {
+  userId: string
+  chatId: number
+  kind: 'tag'
+  entryId: string
+}
+
+export type UpsertFlowResult = {
+  status: 'created' | 'replaced'
+  flowId: string
+}
+
+export const upsertFlowRef = makeFunctionReference<'mutation', UpsertFlowArgs, UpsertFlowResult>('tables/flows:upsertActive')
+
 export type IncrementErrorCounterArgs = {
   telegramId: number
 }

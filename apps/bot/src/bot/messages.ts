@@ -6,3 +6,8 @@ export const NOT_REGISTERED_MESSAGE = 'Сначала нужно запусти�
 export const INVALID_CONTEXT_MESSAGE = 'Не вышло разобраться, кто ты или какой чат. Попробуй ещё раз или напиши разарботчику – @bozzhik'
 export const BOTS_NOT_SUPPORTED_MESSAGE = 'Не могу обработать эту команду'
 export const INTERNAL_ERROR_MESSAGE = 'Что-то сломалось с моей стороны. Попробуй чуть позже или напиши разарботчику – @bozzhik'
+export const SAVED_TO_INBOX_MESSAGE = 'Сохранил во входящие. Напиши тег в формате #example.'
+
+export function savedWithTagsMessage(tags: string[]): string {
+  return `Сохранил с тегами ${tags.join(' ')}.`
+}

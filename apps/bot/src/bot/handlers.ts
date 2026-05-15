@@ -6,11 +6,13 @@ import {BOTS_NOT_SUPPORTED_MESSAGE, HELP_MESSAGE, INTERNAL_ERROR_MESSAGE, INVALI
 import {env} from '@/config/env'
 import {getUserIdentity} from '@/bot/context'
 import {handleStart, handleText, readStartPayload} from '@/bot/flow'
-import {incrementErrorCounter, recordBotEvent, registerOnStart, touchOnText} from '@/convex/client'
+import {incrementErrorCounter, recordBotEvent, registerOnStart, saveEntry, touchOnText, upsertFlow} from '@/convex/client'
 
 const botDataClient = {
   registerOnStart,
   touchOnText,
+  saveEntry,
+  upsertFlow,
 }
 
 function withRuntimeLabel(text: string): string {
@@ -132,7 +134,7 @@ export function registerBotHandlers(bot: Bot): void {
     const identity = getUserIdentity(ctx)
 
     try {
-      const result = await handleText({identity, text}, botDataClient)
+      const result = await handleText({identity, messageId: ctx.message.message_id, text}, botDataClient)
       if (result.type === 'ignored_command') {
         if (identity !== null) {
           logHandledCommand(result.command, identity)
