@@ -578,13 +578,7 @@ function DatabaseTablePageInner({slug}: {slug: string}) {
       </Card>
 
       <Dialog open={!!viewRow} onOpenChange={(open) => (!open ? setViewRow(null) : null)}>
-        <DialogContent
-          showCloseButton={false}
-          className={cn(
-            'flex flex-col gap-0 overflow-hidden p-0',
-            'max-h-[min(40rem,85dvh)] xl:max-h-[min(34rem,82dvh)] sm:max-h-[90dvh]',
-          )}
-        >
+        <DialogContent showCloseButton={false} className={cn('flex flex-col gap-0 overflow-hidden p-0', 'max-h-[min(40rem,85dvh)] xl:max-h-[min(34rem,82dvh)] sm:max-h-[90dvh]')}>
           <DialogClose
             render={
               <Button variant="ghost" className="absolute top-2 right-2 z-20 font-mono text-lg leading-none" size="icon-sm" aria-label="Close">
@@ -599,14 +593,7 @@ function DatabaseTablePageInner({slug}: {slug: string}) {
             <DialogDescription className="break-all font-mono text-xs">{viewRow?._id}</DialogDescription>
           </DialogHeader>
 
-          <div
-            className={cn(
-              'overflow-y-auto overscroll-contain px-4 py-4 sm:px-3',
-              'max-h-[calc(min(40rem,85dvh)-4.5rem)]',
-              'xl:max-h-[calc(min(34rem,82dvh)-4.5rem)]',
-              'sm:max-h-[calc(90dvh-4rem)]',
-            )}
-          >
+          <div className={cn('overflow-y-auto overscroll-contain px-4 py-4 sm:px-3', 'max-h-[calc(min(40rem,85dvh)-4.5rem)]', 'xl:max-h-[calc(min(34rem,82dvh)-4.5rem)]', 'sm:max-h-[calc(90dvh-4rem)]')}>
             {!viewRow ? null : (
               <FieldGroup>
                 <Field className="gap-1.25">

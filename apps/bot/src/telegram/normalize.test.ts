@@ -10,7 +10,7 @@ describe('telegram normalize', () => {
     })
   })
 
-  test('normalizes text commands separately from content', () => {
+  test('normalizes text commands separately from capturable text', () => {
     expect(normalizeTextMessage('/start payload')).toEqual({
       kind: 'command',
       command: '/start',

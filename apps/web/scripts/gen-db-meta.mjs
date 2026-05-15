@@ -203,6 +203,8 @@ function generateTableBaseInner({tableName, fields}, sourceFile) {
   const fieldEntries = Object.entries(fields)
 
   const createFields = fieldEntries.map(([k, vExpr]) => `    ${JSON.stringify(k)}: ${printNode(vExpr, sourceFile)},`).join('\n')
+  const docFields = [`    _id: v.id(${JSON.stringify(tableName)}),`, '    _creationTime: v.number(),', ...fieldEntries.map(([k, vExpr]) => `    ${JSON.stringify(k)}: ${printNode(vExpr, sourceFile)},`)].join('\n')
+  const docValidator = `v.object({\n${docFields}\n  })`
 
   const patchFields = fieldEntries
     .map(([k, vExpr]) => {
@@ -216,6 +218,10 @@ function generateTableBaseInner({tableName, fields}, sourceFile) {
 
   return `export const length = query({
   args: {},
+  returns: v.object({
+    count: v.number(),
+    isTruncated: v.boolean(),
+  }),
   handler: async (ctx) => {
     const rows = await ctx.db.query(${JSON.stringify(tableName)}).take(${LENGTH_MAX})
     return {count: rows.length, isTruncated: rows.length === ${LENGTH_MAX}}
@@ -224,6 +230,11 @@ function generateTableBaseInner({tableName, fields}, sourceFile) {
 
 export const list = query({
   args: {paginationOpts: paginationOptsValidator},
+  returns: v.object({
+    page: v.array(${docValidator}),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+  }),
   handler: async (ctx, args) => {
     return await ctx.db.query(${JSON.stringify(tableName)}).order('desc').paginate(args.paginationOpts)
   },
@@ -231,6 +242,7 @@ export const list = query({
 
 export const getById = query({
   args: {id: v.id(${JSON.stringify(tableName)})},
+  returns: v.union(${docValidator}, v.null()),
   handler: async (ctx, args) => {
     return await ctx.db.get(${JSON.stringify(tableName)}, args.id)
   },
@@ -242,6 +254,7 @@ export const create = mutation({
 ${createFields}
     }),
   },
+  returns: v.id(${JSON.stringify(tableName)}),
   handler: async (ctx, args) => {
     return await ctx.db.insert(${JSON.stringify(tableName)}, args.doc)
   },
@@ -254,6 +267,7 @@ export const update = mutation({
 ${patchFields}
     }),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     await ctx.db.patch(${JSON.stringify(tableName)}, args.id, args.patch)
     return null
@@ -262,6 +276,7 @@ ${patchFields}
 
 export const remove = mutation({
   args: {id: v.id(${JSON.stringify(tableName)})},
+  returns: v.null(),
   handler: async (ctx, args) => {
     await ctx.db.delete(args.id)
     return null

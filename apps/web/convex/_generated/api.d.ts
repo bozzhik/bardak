@@ -8,7 +8,11 @@
  * @module
  */
 
-import type * as tables_demo from "../tables/demo.js";
+import type * as tables_botEvents from "../tables/botEvents.js";
+import type * as tables_entries from "../tables/entries.js";
+import type * as tables_entryTags from "../tables/entryTags.js";
+import type * as tables_flows from "../tables/flows.js";
+import type * as tables_tags from "../tables/tags.js";
 import type * as tables_users from "../tables/users.js";
 import type * as tables_waitlist from "../tables/waitlist.js";
 
@@ -19,7 +23,11 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  "tables/demo": typeof tables_demo;
+  "tables/botEvents": typeof tables_botEvents;
+  "tables/entries": typeof tables_entries;
+  "tables/entryTags": typeof tables_entryTags;
+  "tables/flows": typeof tables_flows;
+  "tables/tags": typeof tables_tags;
   "tables/users": typeof tables_users;
   "tables/waitlist": typeof tables_waitlist;
 }>;

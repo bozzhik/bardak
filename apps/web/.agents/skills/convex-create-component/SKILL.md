@@ -42,12 +42,12 @@ Create reusable Convex components with clear boundaries and a small app-facing A
 
 Ask the user, then pick one path:
 
-| Goal | Shape | Reference |
-|------|-------|-----------|
-| Component for this app only | Local | `references/local-components.md` |
-| Publish or share across apps | Packaged | `references/packaged-components.md` |
-| User explicitly needs local + shared library code | Hybrid | `references/hybrid-components.md` |
-| Not sure | Default to local | `references/local-components.md` |
+| Goal                                              | Shape            | Reference                           |
+| ------------------------------------------------- | ---------------- | ----------------------------------- |
+| Component for this app only                       | Local            | `references/local-components.md`    |
+| Publish or share across apps                      | Packaged         | `references/packaged-components.md` |
+| User explicitly needs local + shared library code | Hybrid           | `references/hybrid-components.md`   |
+| Not sure                                          | Default to local | `references/local-components.md`    |
 
 Read exactly one reference file before proceeding.
 
@@ -66,107 +66,107 @@ A minimal local component with a table and two functions, plus the app wiring.
 
 ```ts
 // convex/components/notifications/convex.config.ts
-import { defineComponent } from "convex/server";
+import {defineComponent} from 'convex/server'
 
-export default defineComponent("notifications");
+export default defineComponent('notifications')
 ```
 
 ```ts
 // convex/components/notifications/schema.ts
-import { defineSchema, defineTable } from "convex/server";
-import { v } from "convex/values";
+import {defineSchema, defineTable} from 'convex/server'
+import {v} from 'convex/values'
 
 export default defineSchema({
   notifications: defineTable({
     userId: v.string(),
     message: v.string(),
     read: v.boolean(),
-  }).index("by_user", ["userId"]),
-});
+  }).index('by_user', ['userId']),
+})
 ```
 
 ```ts
 // convex/components/notifications/lib.ts
-import { v } from "convex/values";
-import { mutation, query } from "./_generated/server.js";
+import {v} from 'convex/values'
+import {mutation, query} from './_generated/server.js'
 
 export const send = mutation({
-  args: { userId: v.string(), message: v.string() },
-  returns: v.id("notifications"),
+  args: {userId: v.string(), message: v.string()},
+  returns: v.id('notifications'),
   handler: async (ctx, args) => {
-    return await ctx.db.insert("notifications", {
+    return await ctx.db.insert('notifications', {
       userId: args.userId,
       message: args.message,
       read: false,
-    });
+    })
   },
-});
+})
 
 export const listUnread = query({
-  args: { userId: v.string() },
+  args: {userId: v.string()},
   returns: v.array(
     v.object({
-      _id: v.id("notifications"),
+      _id: v.id('notifications'),
       _creationTime: v.number(),
       userId: v.string(),
       message: v.string(),
       read: v.boolean(),
-    })
+    }),
   ),
   handler: async (ctx, args) => {
     return await ctx.db
-      .query("notifications")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
-      .filter((q) => q.eq(q.field("read"), false))
-      .collect();
+      .query('notifications')
+      .withIndex('by_user', (q) => q.eq('userId', args.userId))
+      .filter((q) => q.eq(q.field('read'), false))
+      .collect()
   },
-});
+})
 ```
 
 ```ts
 // convex/convex.config.ts
-import { defineApp } from "convex/server";
-import notifications from "./components/notifications/convex.config.js";
+import {defineApp} from 'convex/server'
+import notifications from './components/notifications/convex.config.js'
 
-const app = defineApp();
-app.use(notifications);
+const app = defineApp()
+app.use(notifications)
 
-export default app;
+export default app
 ```
 
 ```ts
 // convex/notifications.ts  (app-side wrapper)
-import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
-import { components } from "./_generated/api";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import {v} from 'convex/values'
+import {mutation, query} from './_generated/server'
+import {components} from './_generated/api'
+import {getAuthUserId} from '@convex-dev/auth/server'
 
 export const sendNotification = mutation({
-  args: { message: v.string() },
+  args: {message: v.string()},
   returns: v.null(),
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    const userId = await getAuthUserId(ctx)
+    if (!userId) throw new Error('Not authenticated')
 
     await ctx.runMutation(components.notifications.lib.send, {
       userId,
       message: args.message,
-    });
-    return null;
+    })
+    return null
   },
-});
+})
 
 export const myUnread = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    const userId = await getAuthUserId(ctx)
+    if (!userId) throw new Error('Not authenticated')
 
     return await ctx.runQuery(components.notifications.lib.listUnread, {
       userId,
-    });
+    })
   },
-});
+})
 ```
 
 Note the reference path shape: a function in `convex/components/notifications/lib.ts` is called as `components.notifications.lib.send` from the app.
@@ -189,57 +189,61 @@ Note the reference path shape: a function in `convex/components/notifications/li
 
 ```ts
 // Bad: component code cannot rely on app auth or env
-const identity = await ctx.auth.getUserIdentity();
-const apiKey = process.env.OPENAI_API_KEY;
+const identity = await ctx.auth.getUserIdentity()
+const apiKey = process.env.OPENAI_API_KEY
 ```
 
 ```ts
 // Good: the app resolves auth and env, then passes explicit values
-const userId = await getAuthUserId(ctx);
-if (!userId) throw new Error("Not authenticated");
+const userId = await getAuthUserId(ctx)
+if (!userId) throw new Error('Not authenticated')
 
 await ctx.runAction(components.translator.translate, {
   userId,
   apiKey: process.env.OPENAI_API_KEY,
   text: args.text,
-});
+})
 ```
 
 ### Client-facing API
 
 ```ts
 // Bad: assuming a component function is directly callable by clients
-export const send = components.notifications.send;
+export const send = components.notifications.send
 ```
 
 ```ts
 // Good: re-export through an app mutation or query
 export const sendNotification = mutation({
-  args: { message: v.string() },
+  args: {message: v.string()},
   returns: v.null(),
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    const userId = await getAuthUserId(ctx)
+    if (!userId) throw new Error('Not authenticated')
 
     await ctx.runMutation(components.notifications.lib.send, {
       userId,
       message: args.message,
-    });
-    return null;
+    })
+    return null
   },
-});
+})
 ```
 
 ### IDs across the boundary
 
 ```ts
 // Bad: parent app table IDs are not valid component validators
-args: { userId: v.id("users") }
+args: {
+  userId: v.id('users')
+}
 ```
 
 ```ts
 // Good: treat parent-owned IDs as strings at the boundary
-args: { userId: v.string() }
+args: {
+  userId: v.string()
+}
 ```
 
 ### Function Handles for callbacks
@@ -248,31 +252,31 @@ When the app needs to pass a callback function to the component, use function ha
 
 ```ts
 // App side: create a handle and pass it to the component
-import { createFunctionHandle } from "convex/server";
+import {createFunctionHandle} from 'convex/server'
 
 export const startJob = mutation({
   handler: async (ctx) => {
-    const handle = await createFunctionHandle(internal.myModule.processItem);
+    const handle = await createFunctionHandle(internal.myModule.processItem)
     await ctx.runMutation(components.workpool.enqueue, {
       callback: handle,
-    });
+    })
   },
-});
+})
 ```
 
 ```ts
 // Component side: accept and invoke the handle
-import { v } from "convex/values";
-import type { FunctionHandle } from "convex/server";
-import { mutation } from "./_generated/server.js";
+import {v} from 'convex/values'
+import type {FunctionHandle} from 'convex/server'
+import {mutation} from './_generated/server.js'
 
 export const enqueue = mutation({
-  args: { callback: v.string() },
+  args: {callback: v.string()},
   handler: async (ctx, args) => {
-    const handle = args.callback as FunctionHandle<"mutation">;
-    await ctx.scheduler.runAfter(0, handle, {});
+    const handle = args.callback as FunctionHandle<'mutation'>
+    await ctx.scheduler.runAfter(0, handle, {})
   },
-});
+})
 ```
 
 ### Deriving validators from schema
@@ -280,21 +284,21 @@ export const enqueue = mutation({
 Instead of manually repeating field types in return validators, extend the schema validator:
 
 ```ts
-import { v } from "convex/values";
-import schema from "./schema.js";
+import {v} from 'convex/values'
+import schema from './schema.js'
 
 const notificationDoc = schema.tables.notifications.validator.extend({
-  _id: v.id("notifications"),
+  _id: v.id('notifications'),
   _creationTime: v.number(),
-});
+})
 
 export const getLatest = query({
   args: {},
   returns: v.nullable(notificationDoc),
   handler: async (ctx) => {
-    return await ctx.db.query("notifications").order("desc").first();
+    return await ctx.db.query('notifications').order('desc').first()
   },
-});
+})
 ```
 
 ### Static configuration with a globals table
@@ -309,24 +313,24 @@ export default defineSchema({
     webhookUrl: v.optional(v.string()),
   }),
   // ... other tables
-});
+})
 ```
 
 ```ts
 // lib.ts
 export const configure = mutation({
-  args: { maxRetries: v.number(), webhookUrl: v.optional(v.string()) },
+  args: {maxRetries: v.number(), webhookUrl: v.optional(v.string())},
   returns: v.null(),
   handler: async (ctx, args) => {
-    const existing = await ctx.db.query("globals").first();
+    const existing = await ctx.db.query('globals').first()
     if (existing) {
-      await ctx.db.patch(existing._id, args);
+      await ctx.db.patch(existing._id, args)
     } else {
-      await ctx.db.insert("globals", args);
+      await ctx.db.insert('globals', args)
     }
-    return null;
+    return null
   },
-});
+})
 ```
 
 ### Class-based client wrappers
@@ -335,42 +339,42 @@ For components with many functions or configuration options, a class-based clien
 
 ```ts
 // src/client/index.ts
-import type { GenericMutationCtx, GenericDataModel } from "convex/server";
-import type { ComponentApi } from "../component/_generated/component.js";
+import type {GenericMutationCtx, GenericDataModel} from 'convex/server'
+import type {ComponentApi} from '../component/_generated/component.js'
 
-type MutationCtx = Pick<GenericMutationCtx<GenericDataModel>, "runMutation">;
+type MutationCtx = Pick<GenericMutationCtx<GenericDataModel>, 'runMutation'>
 
 export class Notifications {
   constructor(
     private component: ComponentApi,
-    private options?: { defaultChannel?: string },
+    private options?: {defaultChannel?: string},
   ) {}
 
-  async send(ctx: MutationCtx, args: { userId: string; message: string }) {
+  async send(ctx: MutationCtx, args: {userId: string; message: string}) {
     return await ctx.runMutation(this.component.lib.send, {
       ...args,
-      channel: this.options?.defaultChannel ?? "default",
-    });
+      channel: this.options?.defaultChannel ?? 'default',
+    })
   }
 }
 ```
 
 ```ts
 // App usage
-import { Notifications } from "@convex-dev/notifications";
-import { components } from "./_generated/api";
+import {Notifications} from '@convex-dev/notifications'
+import {components} from './_generated/api'
 
 const notifications = new Notifications(components.notifications, {
-  defaultChannel: "alerts",
-});
+  defaultChannel: 'alerts',
+})
 
 export const send = mutation({
-  args: { message: v.string() },
+  args: {message: v.string()},
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    await notifications.send(ctx, { userId, message: args.message });
+    const userId = await getAuthUserId(ctx)
+    await notifications.send(ctx, {userId, message: args.message})
   },
-});
+})
 ```
 
 ## Validation

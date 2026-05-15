@@ -3,19 +3,11 @@
 import {api} from '@/lib/convex'
 import type {TableNames} from '@convex/_generated/dataModel'
 
-export const dbTables = ["demo", "waitlist", "users"] as const
+export const dbTables = ['waitlist', 'users', 'entries', 'tags', 'entryTags', 'flows', 'botEvents'] as const
 export type DbTable = (typeof dbTables)[number]
 
 export const dbAdminApi = {
-  "demo": {
-    length: api.tables.demo.length,
-    list: api.tables.demo.list,
-    getById: api.tables.demo.getById,
-    create: api.tables.demo.create,
-    update: api.tables.demo.update,
-    remove: api.tables.demo.remove,
-  },
-  "waitlist": {
+  waitlist: {
     length: api.tables.waitlist.length,
     list: api.tables.waitlist.list,
     getById: api.tables.waitlist.getById,
@@ -23,13 +15,53 @@ export const dbAdminApi = {
     update: api.tables.waitlist.update,
     remove: api.tables.waitlist.remove,
   },
-  "users": {
+  users: {
     length: api.tables.users.length,
     list: api.tables.users.list,
     getById: api.tables.users.getById,
     create: api.tables.users.create,
     update: api.tables.users.update,
     remove: api.tables.users.remove,
+  },
+  entries: {
+    length: api.tables.entries.length,
+    list: api.tables.entries.list,
+    getById: api.tables.entries.getById,
+    create: api.tables.entries.create,
+    update: api.tables.entries.update,
+    remove: api.tables.entries.remove,
+  },
+  tags: {
+    length: api.tables.tags.length,
+    list: api.tables.tags.list,
+    getById: api.tables.tags.getById,
+    create: api.tables.tags.create,
+    update: api.tables.tags.update,
+    remove: api.tables.tags.remove,
+  },
+  entryTags: {
+    length: api.tables.entryTags.length,
+    list: api.tables.entryTags.list,
+    getById: api.tables.entryTags.getById,
+    create: api.tables.entryTags.create,
+    update: api.tables.entryTags.update,
+    remove: api.tables.entryTags.remove,
+  },
+  flows: {
+    length: api.tables.flows.length,
+    list: api.tables.flows.list,
+    getById: api.tables.flows.getById,
+    create: api.tables.flows.create,
+    update: api.tables.flows.update,
+    remove: api.tables.flows.remove,
+  },
+  botEvents: {
+    length: api.tables.botEvents.length,
+    list: api.tables.botEvents.list,
+    getById: api.tables.botEvents.getById,
+    create: api.tables.botEvents.create,
+    update: api.tables.botEvents.update,
+    remove: api.tables.botEvents.remove,
   },
 } as const satisfies Record<
   DbTable,

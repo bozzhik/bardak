@@ -5,6 +5,7 @@
 - Основные docs: `docs/01-product.md`, `docs/02-development.md`, `docs/03-plan.md`, `docs/04-bot.md`.
 - Текущий фокус: Telegram-бот, core data layer, тестируемые bot-flow.
 - Convex-код: сначала читать `apps/web/convex/_generated/ai/guidelines.md`; использовать validators `v.*`, return validators, индексы вместо `filter()`, не использовать `Date.now()` в queries.
+- После изменений Convex schema/functions запускать `bun db:sync` и `bun convex:once`, чтобы проверить codegen и совместимость схемы с живыми данными.
 - Архитектура: `apps/web` и `apps/bot` — тонкие приложения; бизнес-логика, normalizers и reusable flow-логика должны уходить в `packages/` или выделенные pure-модули.
 - Бот вызывает Convex напрямую, без Next.js API-прослойки.
 - TypeScript strict: не использовать `any`, предпочитать `import type`, типы Convex (`Doc`, `Id`, generated API types).

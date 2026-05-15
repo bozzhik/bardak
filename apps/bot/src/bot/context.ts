@@ -17,7 +17,7 @@ export function getUserIdentity(ctx: Context): UserIdentityPayload | null {
   if (chatKind === null) return null
 
   return {
-    userId: from.id,
+    telegramId: from.id,
     chatId: chat.id,
     chatKind,
     isBotAccount: from.is_bot,

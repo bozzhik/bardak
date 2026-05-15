@@ -115,9 +115,10 @@ Telegram update -> grammY handler -> domain/telegram normalizer -> Convex mutati
 - `/start` регистрирует/обновляет пользователя в Convex;
 - `/help` отвечает справкой;
 - `message:text` пока только touch-ит пользователя и отвечает текстом обратно;
-- таблиц `content`, `tags`, `contentTags`, `flows` пока нет.
+- таблицы `entries`, `tags`, `entryTags`, `flows` уже есть в Convex data layer;
+- сохранение реальных Telegram-сообщений в `entries` подключается следующим bot-slice.
 
-Важно: текущая реализация бота и `users` — рабочий черновик. При переходе к content/tags/flows можно менять структуру модулей, если это делает bot-flow тестируемым и ближе к спецификации.
+Важно: текущая реализация бота и `users` — рабочий черновик. При переходе к entries/tags/flows можно менять структуру модулей, если это делает bot-flow тестируемым и ближе к спецификации.
 
 Полная bot-спецификация: [`04-bot.md`](./04-bot.md).
 
@@ -136,7 +137,7 @@ Telegram update -> grammY handler -> domain/telegram normalizer -> Convex mutati
 | Domain unit tests            | parsing тегов, статусы, выбор следующего действия, validation  | `packages/domain`                      |
 | Telegram normalization tests | перевод grammY/Telegram-like update в internal input           | `packages/telegram` или `apps/bot/src` |
 | Bot flow tests               | какой reply/action должен быть после текста, callback, команды | `apps/bot/src/**/*.test.ts`            |
-| Convex helper tests          | idempotency, создание content/tags, связи, статусы             | helper-логика и fake adapter           |
+| Convex helper tests          | idempotency, создание entries/tags, связи, статусы             | helper-логика и fake adapter           |
 | Manual smoke tests           | проверка реального Telegram runtime перед релизом              | чеклист в `03-plan.md`                 |
 
 ### Подход
@@ -204,7 +205,7 @@ Telegram update -> grammY handler -> domain/telegram normalizer -> Convex mutati
 
 ```text
 docs: update `bot` specification
-bot: add `content` save flow
+bot: add `entries` save flow
 web: improve `table` rendering for `/db/[slug]` page
 update `docker` configuration for `bot` turbo app
 ```

@@ -7,7 +7,7 @@ import {createFakeBotDataClient} from '@/convex/fake-client'
 import {handleStart, handleText, readStartPayload} from '@/bot/flow'
 
 const USER: UserIdentityPayload = {
-  userId: 42,
+  telegramId: 42,
   chatId: 420,
   chatKind: 'bot',
   isBotAccount: false,
@@ -60,7 +60,7 @@ describe('bot flow', () => {
     ])
   })
 
-  test('text commands are ignored as content', async () => {
+  test('text commands are ignored as capturable messages', async () => {
     const client = createFakeBotDataClient()
 
     const result = await handleText({identity: USER, text: '/start again'}, client)

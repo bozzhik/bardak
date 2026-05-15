@@ -31,10 +31,14 @@ export const submit = mutation({
       return {status: 'duplicate' as const}
     }
 
+    const now = Date.now()
     const telegramLink = `https://t.me/${username}`
     const id = await ctx.db.insert('waitlist', {
       username,
       telegramLink,
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
     })
 
     return {status: 'created' as const, id}
@@ -45,6 +49,10 @@ export const submit = mutation({
 // db-gen:base:start
 export const length = query({
   args: {},
+  returns: v.object({
+    count: v.number(),
+    isTruncated: v.boolean(),
+  }),
   handler: async (ctx) => {
     const rows = await ctx.db.query('waitlist').take(5000)
     return {count: rows.length, isTruncated: rows.length === 5000}
@@ -53,6 +61,21 @@ export const length = query({
 
 export const list = query({
   args: {paginationOpts: paginationOptsValidator},
+  returns: v.object({
+    page: v.array(
+      v.object({
+        _id: v.id('waitlist'),
+        _creationTime: v.number(),
+        username: v.string(),
+        telegramLink: v.string(),
+        status: v.optional(v.union(v.literal('active'), v.literal('converted'), v.literal('archived'))),
+        createdAt: v.optional(v.number()),
+        updatedAt: v.optional(v.number()),
+      }),
+    ),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+  }),
   handler: async (ctx, args) => {
     return await ctx.db.query('waitlist').order('desc').paginate(args.paginationOpts)
   },
@@ -60,6 +83,18 @@ export const list = query({
 
 export const getById = query({
   args: {id: v.id('waitlist')},
+  returns: v.union(
+    v.object({
+      _id: v.id('waitlist'),
+      _creationTime: v.number(),
+      username: v.string(),
+      telegramLink: v.string(),
+      status: v.optional(v.union(v.literal('active'), v.literal('converted'), v.literal('archived'))),
+      createdAt: v.optional(v.number()),
+      updatedAt: v.optional(v.number()),
+    }),
+    v.null(),
+  ),
   handler: async (ctx, args) => {
     return await ctx.db.get('waitlist', args.id)
   },
@@ -70,8 +105,12 @@ export const create = mutation({
     doc: v.object({
       username: v.string(),
       telegramLink: v.string(),
+      status: v.optional(v.union(v.literal('active'), v.literal('converted'), v.literal('archived'))),
+      createdAt: v.optional(v.number()),
+      updatedAt: v.optional(v.number()),
     }),
   },
+  returns: v.id('waitlist'),
   handler: async (ctx, args) => {
     return await ctx.db.insert('waitlist', args.doc)
   },
@@ -83,8 +122,12 @@ export const update = mutation({
     patch: v.object({
       username: v.optional(v.string()),
       telegramLink: v.optional(v.string()),
+      status: v.optional(v.union(v.literal('active'), v.literal('converted'), v.literal('archived'))),
+      createdAt: v.optional(v.number()),
+      updatedAt: v.optional(v.number()),
     }),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     await ctx.db.patch('waitlist', args.id, args.patch)
     return null
@@ -93,6 +136,7 @@ export const update = mutation({
 
 export const remove = mutation({
   args: {id: v.id('waitlist')},
+  returns: v.null(),
   handler: async (ctx, args) => {
     await ctx.db.delete(args.id)
     return null

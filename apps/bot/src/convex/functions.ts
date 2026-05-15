@@ -5,7 +5,7 @@ export type ChatKind = 'bot' | 'group' | 'supergroup'
 type NullableString = string | null
 
 export type UserIdentityPayload = {
-  userId: number
+  telegramId: number
   chatId: number
   chatKind: ChatKind
   isBotAccount: boolean
@@ -35,11 +35,38 @@ export type TouchOnTextResult = {status: 'updated'; userId: string} | {status: '
 export const touchOnTextRef = makeFunctionReference<'mutation', UserIdentityPayload, TouchOnTextResult>('tables/users:touchFromTelegramText')
 
 export type IncrementErrorCounterArgs = {
-  userId: number
+  telegramId: number
 }
 
 export type IncrementErrorCounterResult = {status: 'updated'; userId: string} | {status: 'not_registered'}
 
-export const incrementErrorCounterRef = makeFunctionReference<'mutation', IncrementErrorCounterArgs, IncrementErrorCounterResult>(
-  'tables/users:incrementTelegramErrorCounter'
-)
+export const incrementErrorCounterRef = makeFunctionReference<'mutation', IncrementErrorCounterArgs, IncrementErrorCounterResult>('tables/users:incrementTelegramErrorCounter')
+
+export type BotEventContext = {
+  updateId: number | null
+  messageId: number | null
+  textLength: number | null
+  errorName: string | null
+  reason: string | null
+}
+
+export type RecordBotEventArgs = {
+  userId?: string | null
+  telegramId?: number | null
+  chatId?: number | null
+  chatKind?: ChatKind | null
+  kind: 'command' | 'message' | 'flow' | 'entry' | 'error' | 'system'
+  action: string
+  status: 'ok' | 'ignored' | 'rejected' | 'error'
+  command?: string | null
+  messageKind?: 'text' | 'link' | 'photo' | 'voice' | 'audio' | 'document' | 'video' | 'sticker' | 'unsupported' | null
+  entryId?: string | null
+  flowId?: string | null
+  context?: BotEventContext
+}
+
+export type RecordBotEventResult = {
+  eventId: string
+}
+
+export const recordBotEventRef = makeFunctionReference<'mutation', RecordBotEventArgs, RecordBotEventResult>('tables/botEvents:record')

@@ -65,12 +65,9 @@ For shared auth behavior, use the official Convex docs as the source of truth:
 - [Authentication](https://docs.convex.dev/auth) for general auth and authorization guidance
 - [Convex Auth Authorization](https://labs.convex.dev/auth/authz) when the provider is Convex Auth
 
-Do not invent a provider-agnostic user sync pattern from memory.
-For third-party providers, only add app-level user storage if the app actually needs user documents in Convex.
-For Convex Auth, do not add a parallel `users` table plus `storeUser` flow. Follow the Convex Auth docs and built-in auth tables instead.
+Do not invent a provider-agnostic user sync pattern from memory. For third-party providers, only add app-level user storage if the app actually needs user documents in Convex. For Convex Auth, do not add a parallel `users` table plus `storeUser` flow. Follow the Convex Auth docs and built-in auth tables instead.
 
-Do not invent provider-specific setup from memory when the docs are available.
-Do not assume provider initialization commands finish the entire integration. Verify generated files and complete the post-init wiring steps the provider reference calls out.
+Do not invent provider-specific setup from memory when the docs are available. Do not assume provider initialization commands finish the entire integration. Verify generated files and complete the post-init wiring steps the provider reference calls out.
 
 ## Workflow
 
@@ -83,10 +80,7 @@ Do not assume provider initialization commands finish the entire integration. Ve
 7. Add authorization checks for ownership, roles, or team access only where the app needs them
 8. Verify login state, protected queries, environment variables, and production configuration if requested
 
-If the flow blocks on interactive provider or deployment setup, ask the user explicitly for the exact human step needed, then continue after they complete it.
-For UI-facing auth flows, offer to validate the real sign-up or sign-in flow after setup is done.
-If the environment has browser automation tools, you can use them.
-If it does not, give the user a short manual validation checklist instead.
+If the flow blocks on interactive provider or deployment setup, ask the user explicitly for the exact human step needed, then continue after they complete it. For UI-facing auth flows, offer to validate the real sign-up or sign-in flow after setup is done. If the environment has browser automation tools, you can use them. If it does not, give the user a short manual validation checklist instead.
 
 ## Reference Files
 

@@ -1,7 +1,6 @@
 # Convex Auth
 
-Official docs: https://docs.convex.dev/auth/convex-auth
-Setup guide: https://labs.convex.dev/auth/setup
+Official docs: https://docs.convex.dev/auth/convex-auth Setup guide: https://labs.convex.dev/auth/setup
 
 Use this when the user wants auth handled directly in Convex rather than through a third-party provider.
 
