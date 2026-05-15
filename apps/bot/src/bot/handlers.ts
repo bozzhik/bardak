@@ -1,16 +1,16 @@
 import {type Bot, type Context} from 'grammy'
 
 import type {UserIdentityPayload} from '@/convex/functions'
-import {BOTS_NOT_SUPPORTED_MESSAGE, HELP_MESSAGE, INTERNAL_ERROR_MESSAGE, INVALID_CONTEXT_MESSAGE, NOT_REGISTERED_MESSAGE, START_MESSAGE} from '@/bot/messages'
+import {HELP_MESSAGE, INTERNAL_ERROR_MESSAGE} from '@/bot/messages'
 
 import {env} from '@/config/env'
 import {getUserIdentity} from '@/bot/context'
+import {handleStart, handleText, readStartPayload} from '@/bot/flow'
 import {incrementErrorCounter, registerOnStart, touchOnText} from '@/convex/client'
 
-function readStartPayload(match: string | RegExpMatchArray | undefined): string | null {
-  if (typeof match !== 'string') return null
-  const payload = match.trim()
-  return payload.length > 0 ? payload : null
+const botDataClient = {
+  registerOnStart,
+  touchOnText,
 }
 
 function withRuntimeLabel(text: string): string {
@@ -44,25 +44,19 @@ function logHandledText(identity: UserIdentityPayload, text: string): void {
 export function registerBotHandlers(bot: Bot): void {
   bot.command('start', async (ctx) => {
     const identity = getUserIdentity(ctx)
-    if (identity === null) {
-      await reply(ctx, INVALID_CONTEXT_MESSAGE)
-      return
+    if (identity !== null && !identity.isBotAccount) {
+      logHandledCommand('/start', identity)
     }
-
-    if (identity.isBotAccount) {
-      await reply(ctx, BOTS_NOT_SUPPORTED_MESSAGE)
-      return
-    }
-
-    logHandledCommand('/start', identity)
 
     try {
-      await registerOnStart({
-        ...identity,
-        startPayload: readStartPayload(ctx.match),
-        registrationSource: 'telegram_start',
-      })
-      await reply(ctx, START_MESSAGE)
+      const result = await handleStart(
+        {
+          identity,
+          startPayload: readStartPayload(ctx.match),
+        },
+        botDataClient,
+      )
+      await reply(ctx, result.text)
     } catch (error) {
       console.error(`${env.logPrefix} command=/start failed`, error)
       await safelyIncrementErrorCounter(ctx)
@@ -82,37 +76,24 @@ export function registerBotHandlers(bot: Bot): void {
 
   bot.on('message:text', async (ctx) => {
     const text = ctx.message.text
-    if (text.startsWith('/')) {
-      const identity = getUserIdentity(ctx)
-      if (identity !== null) {
-        logHandledCommand(text.split(/\s+/, 1)[0] ?? text, identity)
-      } else {
-        console.log(`${env.logPrefix} command=${text.split(/\s+/, 1)[0] ?? text} handled without identity`)
-      }
-      return
-    }
-
     const identity = getUserIdentity(ctx)
-    if (identity === null) {
-      await reply(ctx, INVALID_CONTEXT_MESSAGE)
-      return
-    }
-
-    if (identity.isBotAccount) {
-      await reply(ctx, BOTS_NOT_SUPPORTED_MESSAGE)
-      return
-    }
-
-    logHandledText(identity, text)
 
     try {
-      const result = await touchOnText(identity)
-      if (result.status === 'not_registered') {
-        await reply(ctx, NOT_REGISTERED_MESSAGE)
+      const result = await handleText({identity, text}, botDataClient)
+      if (result.type === 'ignored_command') {
+        if (identity !== null) {
+          logHandledCommand(result.command, identity)
+        } else {
+          console.log(`${env.logPrefix} command=${result.command} handled without identity`)
+        }
         return
       }
 
-      await reply(ctx, text)
+      if (identity !== null && !identity.isBotAccount) {
+        logHandledText(identity, text)
+      }
+
+      await reply(ctx, result.text)
     } catch (error) {
       console.error(`${env.logPrefix} message:text handler failed`, error)
       await safelyIncrementErrorCounter(ctx)
