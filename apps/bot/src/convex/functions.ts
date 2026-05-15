@@ -34,6 +34,29 @@ export type TouchOnTextResult = {status: 'updated'; userId: string} | {status: '
 
 export const touchOnTextRef = makeFunctionReference<'mutation', UserIdentityPayload, TouchOnTextResult>('tables/users:touchFromTelegramText')
 
+export type TouchOnCommandResult = {status: 'updated'; userId: string} | {status: 'not_registered'}
+
+export const touchOnCommandRef = makeFunctionReference<'mutation', UserIdentityPayload, TouchOnCommandResult>('tables/users:touchFromTelegramCommand')
+
+export type ListTagsArgs = {
+  userId: string
+  limit?: number
+}
+
+export type ListTagsResult = Array<{
+  id: string
+  name: string
+  slug: string
+}>
+
+type ListTagsQueryResult = Array<{
+  _id: string
+  name: string
+  slug: string
+}>
+
+export const listTagsRef = makeFunctionReference<'query', ListTagsArgs, ListTagsQueryResult>('tables/tags:listByUser')
+
 export type SaveEntryArgs = {
   userId: string
   sourceChatId: number

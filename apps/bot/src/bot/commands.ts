@@ -9,4 +9,8 @@ export const botCommands: BotCommand[] = [
     command: 'help',
     description: 'Показать справку',
   },
+  {
+    command: 'tags',
+    description: 'Показать теги',
+  },
 ]

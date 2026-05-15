@@ -176,6 +176,44 @@ export const touchFromTelegramText = mutation({
   },
 })
 
+export const touchFromTelegramCommand = mutation({
+  args: userIdentityArgs,
+  returns: v.union(v.object({status: v.literal('updated'), userId: v.id('users')}), v.object({status: v.literal('not_registered')})),
+  handler: async (ctx, args) => {
+    const existingUser = await ctx.db
+      .query('users')
+      .withIndex('by_telegramId', (q) => q.eq('telegramId', args.telegramId))
+      .unique()
+
+    if (existingUser === null) {
+      return {status: 'not_registered' as const}
+    }
+
+    const now = Date.now()
+    await ctx.db.patch(existingUser._id, {
+      username: args.username,
+      botChatId: args.chatKind === 'bot' ? args.chatId : existingUser.botChatId,
+      updatedAt: now,
+      lastSeenAt: now,
+      status: existingUser.status === 'new' ? 'active' : existingUser.status,
+      profile: buildProfile(args),
+      settings: buildSettings(args),
+      telegram: {
+        ...existingUser.telegram,
+        lastChatId: args.chatId,
+        lastChatKind: args.chatKind,
+      },
+      stats: {
+        ...existingUser.stats,
+        updates: existingUser.stats.updates + 1,
+        commands: existingUser.stats.commands + 1,
+      },
+    })
+
+    return {status: 'updated' as const, userId: existingUser._id}
+  },
+})
+
 export const incrementTelegramErrorCounter = mutation({
   args: {telegramId: v.number()},
   returns: v.union(v.object({status: v.literal('updated'), userId: v.id('users')}), v.object({status: v.literal('not_registered')})),

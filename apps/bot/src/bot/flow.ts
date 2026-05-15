@@ -1,13 +1,15 @@
 import {extractTagTokens} from '@repo/shared'
 
-import type {CompleteTagFlowArgs, CompleteTagFlowResult, RegisterOnStartArgs, RegisterOnStartResult, SaveEntryArgs, SaveEntryResult, TouchOnTextResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
+import type {CompleteTagFlowArgs, CompleteTagFlowResult, ListTagsArgs, ListTagsResult, RegisterOnStartArgs, RegisterOnStartResult, SaveEntryArgs, SaveEntryResult, TouchOnCommandResult, TouchOnTextResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
 
-import {BOTS_NOT_SUPPORTED_MESSAGE, INVALID_CONTEXT_MESSAGE, NOT_REGISTERED_MESSAGE, SAVED_TO_INBOX_MESSAGE, START_MESSAGE, TAG_FORMAT_MESSAGE, savedWithTagsMessage} from '@/bot/messages'
+import {BOTS_NOT_SUPPORTED_MESSAGE, INVALID_CONTEXT_MESSAGE, NOT_REGISTERED_MESSAGE, SAVED_TO_INBOX_MESSAGE, START_MESSAGE, TAGS_EMPTY_MESSAGE, TAG_FORMAT_MESSAGE, savedWithTagsMessage, tagsListMessage} from '@/bot/messages'
 import {normalizeTextMessage} from '@/telegram/normalize'
 
 export type BotDataClient = {
   registerOnStart(args: RegisterOnStartArgs): Promise<RegisterOnStartResult>
   touchOnText(args: UserIdentityPayload): Promise<TouchOnTextResult>
+  touchOnCommand(args: UserIdentityPayload): Promise<TouchOnCommandResult>
+  listTags(args: ListTagsArgs): Promise<ListTagsResult>
   completeTagFlow(args: CompleteTagFlowArgs): Promise<CompleteTagFlowResult>
   saveEntry(args: SaveEntryArgs): Promise<SaveEntryResult>
   upsertFlow(args: UpsertFlowArgs): Promise<UpsertFlowResult>
@@ -36,6 +38,10 @@ export type TextFlowInput = {
   text: string
 }
 
+export type TagsFlowInput = {
+  identity: UserIdentityPayload | null
+}
+
 export function readStartPayload(match: string | RegExpMatchArray | undefined): string | null {
   if (typeof match !== 'string') return null
   const payload = match.trim()
@@ -59,6 +65,29 @@ export async function handleStart(input: StartFlowInput, client: BotDataClient):
   })
 
   return {type: 'reply', text: START_MESSAGE}
+}
+
+export async function handleTags(input: TagsFlowInput, client: BotDataClient): Promise<ReplyResult> {
+  const {identity} = input
+  if (identity === null) {
+    return {type: 'reply', text: INVALID_CONTEXT_MESSAGE}
+  }
+
+  if (identity.isBotAccount) {
+    return {type: 'reply', text: BOTS_NOT_SUPPORTED_MESSAGE}
+  }
+
+  const result = await client.touchOnCommand(identity)
+  if (result.status === 'not_registered') {
+    return {type: 'reply', text: NOT_REGISTERED_MESSAGE}
+  }
+
+  const tags = await client.listTags({
+    userId: result.userId,
+    limit: 50,
+  })
+
+  return {type: 'reply', text: tags.length > 0 ? tagsListMessage(tags) : TAGS_EMPTY_MESSAGE}
 }
 
 export async function handleText(input: TextFlowInput, client: BotDataClient): Promise<BotFlowResult> {

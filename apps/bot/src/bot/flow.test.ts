@@ -4,7 +4,7 @@ import type {UserIdentityPayload} from '@/convex/functions'
 
 import {BOTS_NOT_SUPPORTED_MESSAGE, INVALID_CONTEXT_MESSAGE, NOT_REGISTERED_MESSAGE, START_MESSAGE} from '@/bot/messages'
 import {createFakeBotDataClient} from '@/convex/fake-client'
-import {handleStart, handleText, readStartPayload} from '@/bot/flow'
+import {handleStart, handleTags, handleText, readStartPayload} from '@/bot/flow'
 
 const USER: UserIdentityPayload = {
   telegramId: 42,
@@ -203,5 +203,41 @@ describe('bot flow', () => {
     ])
     expect(client.saveEntryCalls).toHaveLength(0)
     expect(client.upsertFlowCalls).toHaveLength(0)
+  })
+
+  test('/tags asks unregistered users to run /start', async () => {
+    const client = createFakeBotDataClient({
+      touchCommandResult: {status: 'not_registered'},
+    })
+
+    const result = await handleTags({identity: USER}, client)
+
+    expect(result).toEqual({type: 'reply', text: NOT_REGISTERED_MESSAGE})
+    expect(client.touchCommandCalls).toEqual([USER])
+    expect(client.listTagsCalls).toHaveLength(0)
+  })
+
+  test('/tags replies with an empty state when user has no tags', async () => {
+    const client = createFakeBotDataClient()
+
+    const result = await handleTags({identity: USER}, client)
+
+    expect(result).toEqual({type: 'reply', text: 'Тегов пока нет. Сохрани материал без тега, затем напиши #example.'})
+    expect(client.touchCommandCalls).toEqual([USER])
+    expect(client.listTagsCalls).toEqual([{userId: 'users:test', limit: 50}])
+  })
+
+  test('/tags lists only returned user tags', async () => {
+    const client = createFakeBotDataClient({
+      listTagsResult: [
+        {id: 'tags:work', name: 'work', slug: 'work'},
+        {id: 'tags:покупки', name: 'покупки', slug: 'покупки'},
+      ],
+    })
+
+    const result = await handleTags({identity: USER}, client)
+
+    expect(result).toEqual({type: 'reply', text: ['Твои теги:', '', '#work', '#покупки'].join('\n')})
+    expect(client.listTagsCalls).toEqual([{userId: 'users:test', limit: 50}])
   })
 })

@@ -1,9 +1,11 @@
 import type {BotDataClient} from '@/bot/flow'
-import type {CompleteTagFlowArgs, CompleteTagFlowResult, RegisterOnStartArgs, RegisterOnStartResult, SaveEntryArgs, SaveEntryResult, TouchOnTextResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
+import type {CompleteTagFlowArgs, CompleteTagFlowResult, ListTagsArgs, ListTagsResult, RegisterOnStartArgs, RegisterOnStartResult, SaveEntryArgs, SaveEntryResult, TouchOnCommandResult, TouchOnTextResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
 
 type FakeBotDataClientOptions = {
   registerResult?: RegisterOnStartResult
   touchResult?: TouchOnTextResult
+  touchCommandResult?: TouchOnCommandResult
+  listTagsResult?: ListTagsResult
   saveEntryResult?: SaveEntryResult
   upsertFlowResult?: UpsertFlowResult
   completeTagFlowResult?: CompleteTagFlowResult
@@ -12,6 +14,8 @@ type FakeBotDataClientOptions = {
 export type FakeBotDataClient = BotDataClient & {
   registerCalls: RegisterOnStartArgs[]
   touchCalls: UserIdentityPayload[]
+  touchCommandCalls: UserIdentityPayload[]
+  listTagsCalls: ListTagsArgs[]
   completeTagFlowCalls: CompleteTagFlowArgs[]
   saveEntryCalls: SaveEntryArgs[]
   upsertFlowCalls: UpsertFlowArgs[]
@@ -20,6 +24,8 @@ export type FakeBotDataClient = BotDataClient & {
 export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}): FakeBotDataClient {
   const registerCalls: RegisterOnStartArgs[] = []
   const touchCalls: UserIdentityPayload[] = []
+  const touchCommandCalls: UserIdentityPayload[] = []
+  const listTagsCalls: ListTagsArgs[] = []
   const completeTagFlowCalls: CompleteTagFlowArgs[] = []
   const saveEntryCalls: SaveEntryArgs[] = []
   const upsertFlowCalls: UpsertFlowArgs[] = []
@@ -31,6 +37,11 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
     status: 'updated',
     userId: 'users:test',
   }
+  const touchCommandResult = options.touchCommandResult ?? {
+    status: 'updated',
+    userId: 'users:test',
+  }
+  const listTagsResult = options.listTagsResult ?? []
   const saveEntryResult = options.saveEntryResult ?? {
     status: 'created',
     entryId: 'entries:test',
@@ -48,6 +59,8 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
   return {
     registerCalls,
     touchCalls,
+    touchCommandCalls,
+    listTagsCalls,
     completeTagFlowCalls,
     saveEntryCalls,
     upsertFlowCalls,
@@ -58,6 +71,14 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
     async touchOnText(args) {
       touchCalls.push(args)
       return touchResult
+    },
+    async touchOnCommand(args) {
+      touchCommandCalls.push(args)
+      return touchCommandResult
+    },
+    async listTags(args) {
+      listTagsCalls.push(args)
+      return listTagsResult
     },
     async completeTagFlow(args) {
       completeTagFlowCalls.push(args)

@@ -26,7 +26,19 @@ type RegisterUserResult = {
   userId: Id<'users'>
 }
 
+type TouchCommandResult =
+  | {
+      status: 'updated'
+      userId: Id<'users'>
+    }
+  | {
+      status: 'not_registered'
+    }
+
+type UserIdentityArgs = Omit<RegisterUserArgs, 'startPayload' | 'registrationSource'>
+
 const registerUserRef = makeFunctionReference<'mutation', RegisterUserArgs, RegisterUserResult>('tables/users:registerFromTelegramStart')
+const touchCommandRef = makeFunctionReference<'mutation', UserIdentityArgs, TouchCommandResult>('tables/users:touchFromTelegramCommand')
 const modules = {
   '../_generated/api.ts': () => import('../_generated/api'),
   '../_generated/server.ts': () => import('../_generated/server'),
@@ -49,6 +61,23 @@ function createRegisterArgs(overrides: Partial<RegisterUserArgs> = {}): Register
     startPayload: 'start',
     registrationSource: 'telegram_start',
     ...overrides,
+  }
+}
+
+function createIdentityArgs(overrides: Partial<UserIdentityArgs> = {}): UserIdentityArgs {
+  const args = createRegisterArgs(overrides)
+  return {
+    telegramId: args.telegramId,
+    chatId: args.chatId,
+    chatKind: args.chatKind,
+    isBotAccount: args.isBotAccount,
+    username: args.username,
+    firstName: args.firstName,
+    lastName: args.lastName,
+    languageCode: args.languageCode,
+    isPremium: args.isPremium,
+    timezone: args.timezone,
+    locale: args.locale,
   }
 }
 
@@ -110,5 +139,31 @@ describe('users data model', () => {
     expect(user?.username).toBe('second')
     expect(user?.botChatId).toBe(421)
     expect(user?.stats.starts).toBe(2)
+  })
+
+  test('touches command usage without counting it as capture', async () => {
+    const t = convexTest(schema, modules)
+    const first = await t.mutation(registerUserRef, createRegisterArgs())
+
+    const result = await t.mutation(touchCommandRef, createIdentityArgs({username: 'after_command', chatId: 422}))
+    const user = await t.run((ctx) => ctx.db.get(first.userId))
+
+    expect(result).toEqual({status: 'updated', userId: first.userId})
+    expect(user?.username).toBe('after_command')
+    expect(user?.botChatId).toBe(422)
+    expect(user?.stats).toMatchObject({
+      updates: 2,
+      commands: 2,
+      starts: 1,
+      captures: 0,
+    })
+  })
+
+  test('touch command returns not_registered for unknown users', async () => {
+    const t = convexTest(schema, modules)
+
+    const result = await t.mutation(touchCommandRef, createIdentityArgs())
+
+    expect(result).toEqual({status: 'not_registered'})
   })
 })

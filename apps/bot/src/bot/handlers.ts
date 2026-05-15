@@ -5,12 +5,14 @@ import {BOTS_NOT_SUPPORTED_MESSAGE, HELP_MESSAGE, INTERNAL_ERROR_MESSAGE, INVALI
 
 import {env} from '@/config/env'
 import {getUserIdentity} from '@/bot/context'
-import {handleStart, handleText, readStartPayload} from '@/bot/flow'
-import {completeTagFlow, incrementErrorCounter, recordBotEvent, registerOnStart, saveEntry, touchOnText, upsertFlow} from '@/convex/client'
+import {handleStart, handleTags, handleText, readStartPayload} from '@/bot/flow'
+import {completeTagFlow, incrementErrorCounter, listTags, recordBotEvent, registerOnStart, saveEntry, touchOnCommand, touchOnText, upsertFlow} from '@/convex/client'
 
 const botDataClient = {
   registerOnStart,
   touchOnText,
+  touchOnCommand,
+  listTags,
   completeTagFlow,
   saveEntry,
   upsertFlow,
@@ -128,6 +130,41 @@ export function registerBotHandlers(bot: Bot): void {
       context: getEventContext(ctx, {textLength: ctx.message?.text?.length ?? null}),
     })
     await reply(ctx, HELP_MESSAGE)
+  })
+
+  bot.command('tags', async (ctx) => {
+    const identity = getUserIdentity(ctx)
+    if (identity !== null && !identity.isBotAccount) {
+      logHandledCommand('/tags', identity)
+    }
+
+    try {
+      const result = await handleTags({identity}, botDataClient)
+      await safelyRecordBotEvent({
+        ...getEventActor(identity),
+        kind: 'command',
+        action: 'tags',
+        status: result.text === INVALID_CONTEXT_MESSAGE || result.text === BOTS_NOT_SUPPORTED_MESSAGE || result.text === NOT_REGISTERED_MESSAGE ? 'rejected' : 'ok',
+        command: '/tags',
+        context: getEventContext(ctx, {
+          textLength: ctx.message?.text?.length ?? null,
+          reason: result.text === INVALID_CONTEXT_MESSAGE ? 'invalid_context' : result.text === BOTS_NOT_SUPPORTED_MESSAGE ? 'bot_account' : result.text === NOT_REGISTERED_MESSAGE ? 'not_registered' : null,
+        }),
+      })
+      await reply(ctx, result.text)
+    } catch (error) {
+      console.error(`${env.logPrefix} command=/tags failed`, error)
+      await safelyRecordBotEvent({
+        ...getEventActor(identity),
+        kind: 'error',
+        action: 'tags_failed',
+        status: 'error',
+        command: '/tags',
+        context: getEventContext(ctx, {textLength: ctx.message?.text?.length ?? null, error, reason: 'handler_failed'}),
+      })
+      await safelyIncrementErrorCounter(ctx)
+      await reply(ctx, INTERNAL_ERROR_MESSAGE)
+    }
   })
 
   bot.on('message:text', async (ctx) => {
