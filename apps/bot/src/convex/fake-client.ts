@@ -1,11 +1,13 @@
 import type {BotDataClient} from '@/bot/flow'
-import type {CompleteTagFlowByIdArgs, CompleteTagFlowByIdResult, CompleteTagFlowArgs, CompleteTagFlowResult, EnsureTagArgs, EnsureTagResult, FindTagArgs, FindTagResult, ListTagsArgs, ListTagsResult, RegisterOnStartArgs, RegisterOnStartResult, RemoveTagArgs, RemoveTagResult, RenameTagArgs, RenameTagResult, SaveEntryArgs, SaveEntryResult, TouchOnCommandResult, TouchOnTextResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
+import type {CancelTagFlowArgs, CancelTagFlowResult, CompleteTagFlowByIdArgs, CompleteTagFlowByIdResult, CompleteTagFlowArgs, CompleteTagFlowResult, CountInboxArgs, CountInboxResult, EnsureTagArgs, EnsureTagResult, FindTagArgs, FindTagResult, ListTagsArgs, ListTagsResult, NextInboxArgs, NextInboxResult, RegisterOnStartArgs, RegisterOnStartResult, RemoveTagArgs, RemoveTagResult, RenameTagArgs, RenameTagResult, SaveEntryArgs, SaveEntryResult, TouchOnCommandResult, TouchOnTextResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
 
 type FakeBotDataClientOptions = {
   registerResult?: RegisterOnStartResult
   touchResult?: TouchOnTextResult
   touchCommandResult?: TouchOnCommandResult
   listTagsResult?: ListTagsResult
+  countInboxResult?: CountInboxResult
+  nextInboxResult?: NextInboxResult
   ensureTagResult?: EnsureTagResult
   renameTagResult?: RenameTagResult
   findTagResult?: FindTagResult
@@ -14,6 +16,7 @@ type FakeBotDataClientOptions = {
   upsertFlowResult?: UpsertFlowResult
   completeTagFlowResult?: CompleteTagFlowResult
   completeTagFlowByIdResult?: CompleteTagFlowByIdResult
+  cancelTagFlowResult?: CancelTagFlowResult
 }
 
 export type FakeBotDataClient = BotDataClient & {
@@ -21,12 +24,15 @@ export type FakeBotDataClient = BotDataClient & {
   touchCalls: UserIdentityPayload[]
   touchCommandCalls: UserIdentityPayload[]
   listTagsCalls: ListTagsArgs[]
+  countInboxCalls: CountInboxArgs[]
+  nextInboxCalls: NextInboxArgs[]
   ensureTagCalls: EnsureTagArgs[]
   renameTagCalls: RenameTagArgs[]
   findTagCalls: FindTagArgs[]
   removeTagCalls: RemoveTagArgs[]
   completeTagFlowCalls: CompleteTagFlowArgs[]
   completeTagFlowByIdCalls: CompleteTagFlowByIdArgs[]
+  cancelTagFlowCalls: CancelTagFlowArgs[]
   saveEntryCalls: SaveEntryArgs[]
   upsertFlowCalls: UpsertFlowArgs[]
 }
@@ -36,12 +42,15 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
   const touchCalls: UserIdentityPayload[] = []
   const touchCommandCalls: UserIdentityPayload[] = []
   const listTagsCalls: ListTagsArgs[] = []
+  const countInboxCalls: CountInboxArgs[] = []
+  const nextInboxCalls: NextInboxArgs[] = []
   const ensureTagCalls: EnsureTagArgs[] = []
   const renameTagCalls: RenameTagArgs[] = []
   const findTagCalls: FindTagArgs[] = []
   const removeTagCalls: RemoveTagArgs[] = []
   const completeTagFlowCalls: CompleteTagFlowArgs[] = []
   const completeTagFlowByIdCalls: CompleteTagFlowByIdArgs[] = []
+  const cancelTagFlowCalls: CancelTagFlowArgs[] = []
   const saveEntryCalls: SaveEntryArgs[] = []
   const upsertFlowCalls: UpsertFlowArgs[] = []
   const registerResult = options.registerResult ?? {
@@ -57,6 +66,13 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
     userId: 'users:test',
   }
   const listTagsResult = options.listTagsResult ?? []
+  const countInboxResult = options.countInboxResult ?? {
+    count: 0,
+    isTruncated: false,
+  }
+  const nextInboxResult = options.nextInboxResult ?? {
+    status: 'empty',
+  }
   const ensureTagResult = options.ensureTagResult ?? {
     status: 'created',
     tagId: 'tags:test',
@@ -91,18 +107,24 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
   const completeTagFlowByIdResult = options.completeTagFlowByIdResult ?? {
     status: 'no_active',
   }
+  const cancelTagFlowResult = options.cancelTagFlowResult ?? {
+    status: 'no_active',
+  }
 
   return {
     registerCalls,
     touchCalls,
     touchCommandCalls,
     listTagsCalls,
+    countInboxCalls,
+    nextInboxCalls,
     ensureTagCalls,
     renameTagCalls,
     findTagCalls,
     removeTagCalls,
     completeTagFlowCalls,
     completeTagFlowByIdCalls,
+    cancelTagFlowCalls,
     saveEntryCalls,
     upsertFlowCalls,
     async registerOnStart(args) {
@@ -120,6 +142,14 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
     async listTags(args) {
       listTagsCalls.push(args)
       return listTagsResult
+    },
+    async countInbox(args) {
+      countInboxCalls.push(args)
+      return countInboxResult
+    },
+    async getNextInbox(args) {
+      nextInboxCalls.push(args)
+      return nextInboxResult
     },
     async ensureTag(args) {
       ensureTagCalls.push(args)
@@ -144,6 +174,10 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
     async completeTagFlowById(args) {
       completeTagFlowByIdCalls.push(args)
       return completeTagFlowByIdResult
+    },
+    async cancelTagFlow(args) {
+      cancelTagFlowCalls.push(args)
+      return cancelTagFlowResult
     },
     async saveEntry(args) {
       saveEntryCalls.push(args)

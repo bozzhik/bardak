@@ -57,6 +57,40 @@ type ListTagsQueryResult = Array<{
 
 export const listTagsRef = makeFunctionReference<'query', ListTagsArgs, ListTagsQueryResult>('tables/tags:listByUser')
 
+export type CountInboxArgs = {
+  userId: string
+  limit?: number
+}
+
+export type CountInboxResult = {
+  count: number
+  isTruncated: boolean
+}
+
+export const countInboxRef = makeFunctionReference<'query', CountInboxArgs, CountInboxResult>('tables/entries:countInbox')
+
+export type NextInboxArgs = {
+  userId: string
+}
+
+export type NextInboxResult =
+  | {
+      status: 'empty'
+    }
+  | {
+      status: 'found'
+      entry: {
+        id: string
+        kind: 'text' | 'link' | 'photo' | 'voice' | 'audio' | 'document' | 'video' | 'sticker' | 'unsupported'
+        text: string | null
+        description: string | null
+        url: string | null
+        createdAt: number
+      }
+    }
+
+export const getNextInboxRef = makeFunctionReference<'query', NextInboxArgs, NextInboxResult>('tables/entries:getNextInbox')
+
 export type EnsureTagArgs = {
   userId: string
   tag: string
@@ -150,6 +184,16 @@ export type CompleteTagFlowByIdArgs = {
 export type CompleteTagFlowByIdResult = {status: 'no_active'} | {status: 'missing_tag'} | {status: 'tagged'; flowId: string; entryId: string; tagId: string; tagName: string}
 
 export const completeTagFlowByIdRef = makeFunctionReference<'mutation', CompleteTagFlowByIdArgs, CompleteTagFlowByIdResult>('tables/flows:completeTagById')
+
+export type CancelTagFlowArgs = {
+  userId: string
+  chatId: number
+  entryId: string
+}
+
+export type CancelTagFlowResult = {status: 'no_active'} | {status: 'cancelled'; flowId: string; entryId: string}
+
+export const cancelTagFlowRef = makeFunctionReference<'mutation', CancelTagFlowArgs, CancelTagFlowResult>('tables/flows:cancelForEntry')
 
 export type IncrementErrorCounterArgs = {
   telegramId: number

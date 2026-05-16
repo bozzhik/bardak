@@ -1,8 +1,8 @@
 import {extractTagTokens, normalizeTagToken} from '@repo/shared'
 
-import type {CompleteTagFlowByIdArgs, CompleteTagFlowByIdResult, CompleteTagFlowArgs, CompleteTagFlowResult, EnsureTagArgs, EnsureTagResult, FindTagArgs, FindTagResult, ListTagsArgs, ListTagsResult, RegisterOnStartArgs, RegisterOnStartResult, RemoveTagArgs, RemoveTagResult, RenameTagArgs, RenameTagResult, SaveEntryArgs, SaveEntryResult, TouchOnCommandResult, TouchOnTextResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
+import type {CancelTagFlowArgs, CancelTagFlowResult, CompleteTagFlowByIdArgs, CompleteTagFlowByIdResult, CompleteTagFlowArgs, CompleteTagFlowResult, CountInboxArgs, CountInboxResult, EnsureTagArgs, EnsureTagResult, FindTagArgs, FindTagResult, ListTagsArgs, ListTagsResult, NextInboxArgs, NextInboxResult, RegisterOnStartArgs, RegisterOnStartResult, RemoveTagArgs, RemoveTagResult, RenameTagArgs, RenameTagResult, SaveEntryArgs, SaveEntryResult, TouchOnCommandResult, TouchOnTextResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
 
-import {BOTS_NOT_SUPPORTED_MESSAGE, INVALID_CONTEXT_MESSAGE, NO_ACTIVE_FLOW_MESSAGE, NOT_REGISTERED_MESSAGE, SAVED_TO_INBOX_MESSAGE, START_MESSAGE, TAGS_EMPTY_MESSAGE, TAG_DELETE_CANCELLED_MESSAGE, TAG_DELETE_USAGE_MESSAGE, TAG_FORMAT_MESSAGE, TAG_NEW_USAGE_MESSAGE, TAG_RENAME_USAGE_MESSAGE, UNKNOWN_ACTION_MESSAGE, savedWithTagsMessage, tagCreatedMessage, tagDeleteConfirmMessage, tagDeletedMessage, tagExistsMessage, tagNotFoundMessage, tagRenamedMessage, tagsListMessage} from '@/bot/messages'
+import {BOTS_NOT_SUPPORTED_MESSAGE, INBOX_EMPTY_MESSAGE, INBOX_SKIPPED_MESSAGE, INVALID_CONTEXT_MESSAGE, NO_ACTIVE_FLOW_MESSAGE, NOT_REGISTERED_MESSAGE, SAVED_TO_INBOX_MESSAGE, START_MESSAGE, TAGS_EMPTY_MESSAGE, TAG_DELETE_CANCELLED_MESSAGE, TAG_DELETE_USAGE_MESSAGE, TAG_FORMAT_MESSAGE, TAG_NEW_USAGE_MESSAGE, TAG_RENAME_USAGE_MESSAGE, UNKNOWN_ACTION_MESSAGE, inboxCountMessage, inboxItemMessage, savedWithTagsMessage, tagCreatedMessage, tagDeleteConfirmMessage, tagDeletedMessage, tagExistsMessage, tagNotFoundMessage, tagRenamedMessage, tagsListMessage} from '@/bot/messages'
 import {normalizeTextMessage} from '@/telegram/normalize'
 
 export type BotDataClient = {
@@ -10,12 +10,15 @@ export type BotDataClient = {
   touchOnText(args: UserIdentityPayload): Promise<TouchOnTextResult>
   touchOnCommand(args: UserIdentityPayload): Promise<TouchOnCommandResult>
   listTags(args: ListTagsArgs): Promise<ListTagsResult>
+  countInbox(args: CountInboxArgs): Promise<CountInboxResult>
+  getNextInbox(args: NextInboxArgs): Promise<NextInboxResult>
   ensureTag(args: EnsureTagArgs): Promise<EnsureTagResult>
   renameTag(args: RenameTagArgs): Promise<RenameTagResult>
   findTag(args: FindTagArgs): Promise<FindTagResult>
   removeTag(args: RemoveTagArgs): Promise<RemoveTagResult>
   completeTagFlow(args: CompleteTagFlowArgs): Promise<CompleteTagFlowResult>
   completeTagFlowById(args: CompleteTagFlowByIdArgs): Promise<CompleteTagFlowByIdResult>
+  cancelTagFlow(args: CancelTagFlowArgs): Promise<CancelTagFlowResult>
   saveEntry(args: SaveEntryArgs): Promise<SaveEntryResult>
   upsertFlow(args: UpsertFlowArgs): Promise<UpsertFlowResult>
 }
@@ -50,6 +53,10 @@ export type TextFlowInput = {
 }
 
 export type TagsFlowInput = {
+  identity: UserIdentityPayload | null
+}
+
+export type InboxFlowInput = {
   identity: UserIdentityPayload | null
 }
 
@@ -91,6 +98,10 @@ export function tagDeleteCancelCallback(tagId: string): string {
   return `tag:delete:cancel:${tagId}`
 }
 
+export function inboxSkipCallback(entryId: string): string {
+  return `inbox:skip:${entryId}`
+}
+
 function parseTwoTags(payload: string | null): {fromTag: string; toTag: string} | null {
   if (payload === null) return null
   const [fromTag, toTag, extra] = payload.trim().split(/\s+/)
@@ -103,11 +114,23 @@ function tagButtons(tags: ListTagsResult): ReplyButton[][] {
   return tags.map((tag) => [{text: `#${tag.name}`, data: tagPickCallback(tag.id)}])
 }
 
-function parseCallbackData(data: string): {kind: 'pick'; tagId: string} | {kind: 'delete_confirm'; tagId: string} | {kind: 'delete_cancel'; tagId: string} | null {
+function parseCallbackData(data: string): {kind: 'pick'; tagId: string} | {kind: 'delete_confirm'; tagId: string} | {kind: 'delete_cancel'; tagId: string} | {kind: 'inbox_skip'; entryId: string} | null {
   if (data.startsWith('tag:pick:')) return {kind: 'pick', tagId: data.slice('tag:pick:'.length)}
   if (data.startsWith('tag:delete:confirm:')) return {kind: 'delete_confirm', tagId: data.slice('tag:delete:confirm:'.length)}
   if (data.startsWith('tag:delete:cancel:')) return {kind: 'delete_cancel', tagId: data.slice('tag:delete:cancel:'.length)}
+  if (data.startsWith('inbox:skip:')) return {kind: 'inbox_skip', entryId: data.slice('inbox:skip:'.length)}
   return null
+}
+
+function buildInboxPreview(entry: Extract<NextInboxResult, {status: 'found'}>['entry']): string {
+  const source = entry.text ?? entry.description ?? entry.url ?? `[${entry.kind}]`
+  const collapsed = source.trim().replace(/\s+/g, ' ')
+  if (collapsed.length <= 160) return collapsed
+  return `${collapsed.slice(0, 157)}...`
+}
+
+function inboxButtons(tags: ListTagsResult, entryId: string): ReplyButton[][] {
+  return [...tagButtons(tags), [{text: 'Пропустить', data: inboxSkipCallback(entryId)}]]
 }
 
 export async function handleStart(input: StartFlowInput, client: BotDataClient): Promise<ReplyResult> {
@@ -150,6 +173,68 @@ export async function handleTags(input: TagsFlowInput, client: BotDataClient): P
   })
 
   return {type: 'reply', text: tags.length > 0 ? tagsListMessage(tags) : TAGS_EMPTY_MESSAGE}
+}
+
+export async function handleInboxCount(input: InboxFlowInput, client: BotDataClient): Promise<ReplyResult> {
+  const identity = input.identity
+  if (identity === null) {
+    return {type: 'reply', text: INVALID_CONTEXT_MESSAGE}
+  }
+
+  if (identity.isBotAccount) {
+    return {type: 'reply', text: BOTS_NOT_SUPPORTED_MESSAGE}
+  }
+
+  const result = await client.touchOnCommand(identity)
+  if (result.status === 'not_registered') {
+    return {type: 'reply', text: NOT_REGISTERED_MESSAGE}
+  }
+
+  const count = await client.countInbox({
+    userId: result.userId,
+    limit: 100,
+  })
+
+  return {type: 'reply', text: inboxCountMessage(count.count, count.isTruncated)}
+}
+
+export async function handleInbox(input: InboxFlowInput, client: BotDataClient): Promise<ReplyResult> {
+  const identity = input.identity
+  if (identity === null) {
+    return {type: 'reply', text: INVALID_CONTEXT_MESSAGE}
+  }
+
+  if (identity.isBotAccount) {
+    return {type: 'reply', text: BOTS_NOT_SUPPORTED_MESSAGE}
+  }
+
+  const result = await client.touchOnCommand(identity)
+  if (result.status === 'not_registered') {
+    return {type: 'reply', text: NOT_REGISTERED_MESSAGE}
+  }
+
+  const next = await client.getNextInbox({userId: result.userId})
+  if (next.status === 'empty') {
+    return {type: 'reply', text: INBOX_EMPTY_MESSAGE}
+  }
+
+  await client.upsertFlow({
+    userId: result.userId,
+    chatId: identity.chatId,
+    kind: 'tag',
+    entryId: next.entry.id,
+  })
+
+  const existingTags = await client.listTags({
+    userId: result.userId,
+    limit: 8,
+  })
+
+  return {
+    type: 'reply',
+    text: inboxItemMessage(buildInboxPreview(next.entry)),
+    buttons: inboxButtons(existingTags, next.entry.id),
+  }
 }
 
 export async function handleTagNew(input: TagNewFlowInput, client: BotDataClient): Promise<ReplyResult> {
@@ -299,6 +384,16 @@ export async function handleCallback(input: CallbackFlowInput, client: BotDataCl
 
   if (callback.kind === 'delete_cancel') {
     return {type: 'reply', text: TAG_DELETE_CANCELLED_MESSAGE}
+  }
+
+  if (callback.kind === 'inbox_skip') {
+    await client.cancelTagFlow({
+      userId: result.userId,
+      chatId: identity.chatId,
+      entryId: callback.entryId,
+    })
+
+    return {type: 'reply', text: INBOX_SKIPPED_MESSAGE}
   }
 
   if (callback.kind === 'delete_confirm') {

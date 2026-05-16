@@ -98,6 +98,52 @@ type CompleteTagFlowByIdResult =
       tagName: string
     }
 
+type CancelTagFlowArgs = {
+  userId: Id<'users'>
+  chatId: number
+  entryId: Id<'entries'>
+}
+
+type CancelTagFlowResult =
+  | {
+      status: 'no_active'
+    }
+  | {
+      status: 'cancelled'
+      flowId: Id<'flows'>
+      entryId: Id<'entries'>
+    }
+
+type CountInboxArgs = {
+  userId: Id<'users'>
+  limit?: number
+}
+
+type CountInboxResult = {
+  count: number
+  isTruncated: boolean
+}
+
+type GetNextInboxArgs = {
+  userId: Id<'users'>
+}
+
+type GetNextInboxResult =
+  | {
+      status: 'empty'
+    }
+  | {
+      status: 'found'
+      entry: {
+        id: Id<'entries'>
+        kind: 'text' | 'link' | 'photo' | 'voice' | 'audio' | 'document' | 'video' | 'sticker' | 'unsupported'
+        text: string | null
+        description: string | null
+        url: string | null
+        createdAt: number
+      }
+    }
+
 type RegisterUserArgs = {
   telegramId: number
   chatId: number
@@ -123,6 +169,9 @@ const saveEntryRef = makeFunctionReference<'mutation', SaveEntryArgs, SaveEntryR
 const upsertFlowRef = makeFunctionReference<'mutation', UpsertFlowArgs, UpsertFlowResult>('tables/flows:upsertActive')
 const completeTagFlowRef = makeFunctionReference<'mutation', CompleteTagFlowArgs, CompleteTagFlowResult>('tables/flows:completeTag')
 const completeTagFlowByIdRef = makeFunctionReference<'mutation', CompleteTagFlowByIdArgs, CompleteTagFlowByIdResult>('tables/flows:completeTagById')
+const cancelTagFlowRef = makeFunctionReference<'mutation', CancelTagFlowArgs, CancelTagFlowResult>('tables/flows:cancelForEntry')
+const countInboxRef = makeFunctionReference<'query', CountInboxArgs, CountInboxResult>('tables/entries:countInbox')
+const getNextInboxRef = makeFunctionReference<'query', GetNextInboxArgs, GetNextInboxResult>('tables/entries:getNextInbox')
 const registerUserRef = makeFunctionReference<'mutation', RegisterUserArgs, RegisterUserResult>('tables/users:registerFromTelegramStart')
 const modules = {
   '../_generated/api.ts': () => import('../_generated/api'),
@@ -132,10 +181,10 @@ const modules = {
   '../tables/users.ts': () => import('./users'),
 }
 
-async function createUser(t: ReturnType<typeof convexTest>): Promise<Id<'users'>> {
+async function createUser(t: ReturnType<typeof convexTest>, telegramId = 1001): Promise<Id<'users'>> {
   const result = await t.mutation(registerUserRef, {
-    telegramId: 1001,
-    chatId: 2001,
+    telegramId,
+    chatId: telegramId + 1000,
     chatKind: 'bot',
     isBotAccount: false,
     username: 'bozzhik',
@@ -371,5 +420,93 @@ describe('entries data model', () => {
     expect(row?.descriptionSource).toBe('none')
     expect(row?.telegram.type).toBe('message:location')
     expect(row?.telegram.context.replyToMessageId).toBe(76)
+  })
+
+  test('counts only inbox entries owned by the requested user', async () => {
+    const t = convexTest(schema, modules)
+    const firstUserId = await createUser(t, 1001)
+    const secondUserId = await createUser(t, 1002)
+
+    await t.mutation(saveEntryRef, createText(firstUserId, {sourceMessageId: 1, tags: []}))
+    await t.mutation(saveEntryRef, createText(firstUserId, {sourceMessageId: 2, tags: ['#saved']}))
+    await t.mutation(saveEntryRef, createText(secondUserId, {sourceMessageId: 3, tags: []}))
+
+    const count = await t.query(countInboxRef, {userId: firstUserId, limit: 100})
+
+    expect(count).toEqual({count: 1, isTruncated: false})
+  })
+
+  test('returns the oldest inbox entry for a user', async () => {
+    const t = convexTest(schema, modules)
+    const userId = await createUser(t)
+    const oldEntryId = await t.run((ctx) =>
+      ctx.db.insert('entries', {
+        userId,
+        source: 'telegram',
+        sourceChatId: 2001,
+        sourceMessageId: 1,
+        kind: 'text',
+        status: 'inbox',
+        text: 'old inbox',
+        description: null,
+        descriptionSource: 'text',
+        url: null,
+        telegram: createTelegram(),
+        createdAt: 1,
+        updatedAt: 1,
+        archivedAt: null,
+      }),
+    )
+    await t.run((ctx) =>
+      ctx.db.insert('entries', {
+        userId,
+        source: 'telegram',
+        sourceChatId: 2001,
+        sourceMessageId: 2,
+        kind: 'text',
+        status: 'inbox',
+        text: 'new inbox',
+        description: null,
+        descriptionSource: 'text',
+        url: null,
+        telegram: createTelegram(),
+        createdAt: 2,
+        updatedAt: 2,
+        archivedAt: null,
+      }),
+    )
+
+    const next = await t.query(getNextInboxRef, {userId})
+
+    expect(next).toEqual({
+      status: 'found',
+      entry: {
+        id: oldEntryId,
+        kind: 'text',
+        text: 'old inbox',
+        description: null,
+        url: null,
+        createdAt: 1,
+      },
+    })
+  })
+
+  test('skipping inbox cancels the active flow but keeps the entry in inbox', async () => {
+    const t = convexTest(schema, modules)
+    const userId = await createUser(t)
+    const entry = await t.mutation(saveEntryRef, createText(userId, {sourceMessageId: 1}))
+    const flow = await t.mutation(upsertFlowRef, {userId, chatId: 2001, kind: 'tag', entryId: entry.entryId})
+
+    const result = await t.mutation(cancelTagFlowRef, {userId, chatId: 2001, entryId: entry.entryId})
+    const savedEntry = await t.run((ctx) => ctx.db.get(entry.entryId))
+    const savedFlow = await t.run((ctx) => ctx.db.get(flow.flowId))
+
+    expect(result).toEqual({
+      status: 'cancelled',
+      flowId: flow.flowId,
+      entryId: entry.entryId,
+    })
+    expect(savedEntry?.status).toBe('inbox')
+    expect(savedFlow?.status).toBe('cancelled')
   })
 })

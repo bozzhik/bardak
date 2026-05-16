@@ -1,6 +1,6 @@
 export const START_MESSAGE = ['Привет! Я на связи и готов к работе', '', 'Если забудешь, что тут есть — загляни в /help'].join('\n')
 
-export const HELP_MESSAGE = ['Коротко, что умею:', '', '/start — запуск бота', '/help — показать справку', '/tags — список тегов', '/tag_new #tag — создать тег', '/tag_rename #old #new — переименовать тег', '/tag_delete #tag — удалить тег'].join('\n')
+export const HELP_MESSAGE = ['Коротко, что умею:', '', '/start — запуск бота', '/help — показать справку', '/inbox — разобрать входящие', '/inbox_count — сколько во входящих', '/tags — список тегов', '/tag_new #tag — создать тег', '/tag_rename #old #new — переименовать тег', '/tag_delete #tag — удалить тег'].join('\n')
 
 export const NOT_REGISTERED_MESSAGE = 'Сначала нужно запустить бота с помощью /start'
 export const INVALID_CONTEXT_MESSAGE = 'Не вышло разобраться, кто ты или какой чат. Попробуй ещё раз или напиши разарботчику – @bozzhik'
@@ -15,6 +15,8 @@ export const TAG_DELETE_USAGE_MESSAGE = 'Напиши в формате /tag_del
 export const TAG_DELETE_CANCELLED_MESSAGE = 'Оставил тег.'
 export const NO_ACTIVE_FLOW_MESSAGE = 'Нет материала для разбора.'
 export const UNKNOWN_ACTION_MESSAGE = 'Не понял действие.'
+export const INBOX_EMPTY_MESSAGE = 'Входящие пустые.'
+export const INBOX_SKIPPED_MESSAGE = 'Оставил во входящих.'
 
 type TagForMessage = {
   name: string
@@ -51,4 +53,12 @@ export function tagDeleteConfirmMessage(tag: string): string {
 
 export function tagDeletedMessage(tag: string): string {
   return `Удалил тег #${tag}.`
+}
+
+export function inboxCountMessage(count: number, isTruncated: boolean): string {
+  return `Во входящих: ${count}${isTruncated ? '+' : ''}.`
+}
+
+export function inboxItemMessage(preview: string): string {
+  return ['Входящие:', '', preview, '', 'Выбери тег, напиши новый #tag или пропусти.'].join('\n')
 }

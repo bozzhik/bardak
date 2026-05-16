@@ -10,6 +10,14 @@ export const botCommands: BotCommand[] = [
     description: 'Показать справку',
   },
   {
+    command: 'inbox',
+    description: 'Разобрать входящие',
+  },
+  {
+    command: 'inbox_count',
+    description: 'Сколько во входящих',
+  },
+  {
     command: 'tags',
     description: 'Показать теги',
   },

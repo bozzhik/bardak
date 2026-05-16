@@ -4,7 +4,7 @@ import type {UserIdentityPayload} from '@/convex/functions'
 
 import {BOTS_NOT_SUPPORTED_MESSAGE, INVALID_CONTEXT_MESSAGE, NOT_REGISTERED_MESSAGE, START_MESSAGE} from '@/bot/messages'
 import {createFakeBotDataClient} from '@/convex/fake-client'
-import {handleCallback, handleStart, handleTagDelete, handleTagNew, handleTagRename, handleTags, handleText, readStartPayload, tagDeleteCancelCallback, tagDeleteConfirmCallback, tagPickCallback} from '@/bot/flow'
+import {handleCallback, handleInbox, handleInboxCount, handleStart, handleTagDelete, handleTagNew, handleTagRename, handleTags, handleText, inboxSkipCallback, readStartPayload, tagDeleteCancelCallback, tagDeleteConfirmCallback, tagPickCallback} from '@/bot/flow'
 
 const USER: UserIdentityPayload = {
   telegramId: 42,
@@ -395,5 +395,75 @@ describe('bot flow', () => {
     expect(cancelled).toEqual({type: 'reply', text: 'Оставил тег.'})
     expect(confirmClient.removeTagCalls).toEqual([{userId: 'users:test', tagId: 'tags:work'}])
     expect(cancelClient.removeTagCalls).toHaveLength(0)
+  })
+
+  test('/inbox_count counts only the registered user inbox', async () => {
+    const client = createFakeBotDataClient({
+      countInboxResult: {count: 3, isTruncated: false},
+    })
+
+    const result = await handleInboxCount({identity: USER}, client)
+
+    expect(result).toEqual({type: 'reply', text: 'Во входящих: 3.'})
+    expect(client.touchCommandCalls).toEqual([USER])
+    expect(client.countInboxCalls).toEqual([{userId: 'users:test', limit: 100}])
+  })
+
+  test('/inbox opens the next inbox entry and offers tags plus skip', async () => {
+    const client = createFakeBotDataClient({
+      nextInboxResult: {
+        status: 'found',
+        entry: {
+          id: 'entries:next',
+          kind: 'text',
+          text: 'купить переходник для монитора',
+          description: null,
+          url: null,
+          createdAt: 100,
+        },
+      },
+      listTagsResult: [
+        {id: 'tags:work', name: 'work', slug: 'work'},
+        {id: 'tags:home', name: 'home', slug: 'home'},
+      ],
+    })
+
+    const result = await handleInbox({identity: USER}, client)
+
+    expect(result).toEqual({
+      type: 'reply',
+      text: ['Входящие:', '', 'купить переходник для монитора', '', 'Выбери тег, напиши новый #tag или пропусти.'].join('\n'),
+      buttons: [[{text: '#work', data: 'tag:pick:tags:work'}], [{text: '#home', data: 'tag:pick:tags:home'}], [{text: 'Пропустить', data: 'inbox:skip:entries:next'}]],
+    })
+    expect(client.nextInboxCalls).toEqual([{userId: 'users:test'}])
+    expect(client.upsertFlowCalls).toEqual([{userId: 'users:test', chatId: 420, kind: 'tag', entryId: 'entries:next'}])
+    expect(client.listTagsCalls).toEqual([{userId: 'users:test', limit: 8}])
+  })
+
+  test('/inbox replies with an empty state without creating a flow', async () => {
+    const client = createFakeBotDataClient({
+      nextInboxResult: {status: 'empty'},
+    })
+
+    const result = await handleInbox({identity: USER}, client)
+
+    expect(result).toEqual({type: 'reply', text: 'Входящие пустые.'})
+    expect(client.upsertFlowCalls).toHaveLength(0)
+    expect(client.listTagsCalls).toHaveLength(0)
+  })
+
+  test('inbox skip callback cancels the active flow and keeps the entry in inbox', async () => {
+    const client = createFakeBotDataClient({
+      cancelTagFlowResult: {
+        status: 'cancelled',
+        flowId: 'flows:test',
+        entryId: 'entries:next',
+      },
+    })
+
+    const result = await handleCallback({identity: USER, data: inboxSkipCallback('entries:next')}, client)
+
+    expect(result).toEqual({type: 'reply', text: 'Оставил во входящих.'})
+    expect(client.cancelTagFlowCalls).toEqual([{userId: 'users:test', chatId: 420, entryId: 'entries:next'}])
   })
 })

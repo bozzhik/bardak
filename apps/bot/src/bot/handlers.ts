@@ -1,24 +1,27 @@
 import {type Bot, type Context} from 'grammy'
 
 import type {RecordBotEventArgs, UserIdentityPayload} from '@/convex/functions'
-import {BOTS_NOT_SUPPORTED_MESSAGE, HELP_MESSAGE, INTERNAL_ERROR_MESSAGE, INVALID_CONTEXT_MESSAGE, NOT_REGISTERED_MESSAGE, TAG_DELETE_USAGE_MESSAGE, TAG_NEW_USAGE_MESSAGE, TAG_RENAME_USAGE_MESSAGE} from '@/bot/messages'
+import {BOTS_NOT_SUPPORTED_MESSAGE, HELP_MESSAGE, INBOX_EMPTY_MESSAGE, INTERNAL_ERROR_MESSAGE, INVALID_CONTEXT_MESSAGE, NOT_REGISTERED_MESSAGE, TAG_DELETE_USAGE_MESSAGE, TAG_NEW_USAGE_MESSAGE, TAG_RENAME_USAGE_MESSAGE} from '@/bot/messages'
 
 import {env} from '@/config/env'
 import {getUserIdentity} from '@/bot/context'
-import {handleCallback, handleStart, handleTagDelete, handleTagNew, handleTagRename, handleTags, handleText, readStartPayload, type ReplyButton, type ReplyResult} from '@/bot/flow'
-import {completeTagFlow, completeTagFlowById, ensureTag, findTag, incrementErrorCounter, listTags, recordBotEvent, registerOnStart, removeTag, renameTag, saveEntry, touchOnCommand, touchOnText, upsertFlow} from '@/convex/client'
+import {handleCallback, handleInbox, handleInboxCount, handleStart, handleTagDelete, handleTagNew, handleTagRename, handleTags, handleText, readStartPayload, type ReplyButton, type ReplyResult} from '@/bot/flow'
+import {cancelTagFlow, completeTagFlow, completeTagFlowById, countInbox, ensureTag, findTag, getNextInbox, incrementErrorCounter, listTags, recordBotEvent, registerOnStart, removeTag, renameTag, saveEntry, touchOnCommand, touchOnText, upsertFlow} from '@/convex/client'
 
 const botDataClient = {
   registerOnStart,
   touchOnText,
   touchOnCommand,
   listTags,
+  countInbox,
+  getNextInbox,
   ensureTag,
   renameTag,
   findTag,
   removeTag,
   completeTagFlow,
   completeTagFlowById,
+  cancelTagFlow,
   saveEntry,
   upsertFlow,
 }
@@ -156,6 +159,76 @@ export function registerBotHandlers(bot: Bot): void {
       context: getEventContext(ctx, {textLength: ctx.message?.text?.length ?? null}),
     })
     await reply(ctx, HELP_MESSAGE)
+  })
+
+  bot.command('inbox_count', async (ctx) => {
+    const identity = getUserIdentity(ctx)
+    if (identity !== null && !identity.isBotAccount) {
+      logHandledCommand('/inbox_count', identity)
+    }
+
+    try {
+      const result = await handleInboxCount({identity}, botDataClient)
+      await safelyRecordBotEvent({
+        ...getEventActor(identity),
+        kind: 'command',
+        action: 'inbox_count',
+        status: isRejectedText(result.text) ? 'rejected' : 'ok',
+        command: '/inbox_count',
+        context: getEventContext(ctx, {
+          textLength: ctx.message?.text?.length ?? null,
+          reason: result.text === INVALID_CONTEXT_MESSAGE ? 'invalid_context' : result.text === BOTS_NOT_SUPPORTED_MESSAGE ? 'bot_account' : result.text === NOT_REGISTERED_MESSAGE ? 'not_registered' : null,
+        }),
+      })
+      await replyWithResult(ctx, result)
+    } catch (error) {
+      console.error(`${env.logPrefix} command=/inbox_count failed`, error)
+      await safelyRecordBotEvent({
+        ...getEventActor(identity),
+        kind: 'error',
+        action: 'inbox_count_failed',
+        status: 'error',
+        command: '/inbox_count',
+        context: getEventContext(ctx, {textLength: ctx.message?.text?.length ?? null, error, reason: 'handler_failed'}),
+      })
+      await safelyIncrementErrorCounter(ctx)
+      await reply(ctx, INTERNAL_ERROR_MESSAGE)
+    }
+  })
+
+  bot.command('inbox', async (ctx) => {
+    const identity = getUserIdentity(ctx)
+    if (identity !== null && !identity.isBotAccount) {
+      logHandledCommand('/inbox', identity)
+    }
+
+    try {
+      const result = await handleInbox({identity}, botDataClient)
+      await safelyRecordBotEvent({
+        ...getEventActor(identity),
+        kind: 'command',
+        action: 'inbox',
+        status: isRejectedText(result.text) ? 'rejected' : 'ok',
+        command: '/inbox',
+        context: getEventContext(ctx, {
+          textLength: ctx.message?.text?.length ?? null,
+          reason: result.text === INVALID_CONTEXT_MESSAGE ? 'invalid_context' : result.text === BOTS_NOT_SUPPORTED_MESSAGE ? 'bot_account' : result.text === NOT_REGISTERED_MESSAGE ? 'not_registered' : result.text === INBOX_EMPTY_MESSAGE ? 'empty' : null,
+        }),
+      })
+      await replyWithResult(ctx, result)
+    } catch (error) {
+      console.error(`${env.logPrefix} command=/inbox failed`, error)
+      await safelyRecordBotEvent({
+        ...getEventActor(identity),
+        kind: 'error',
+        action: 'inbox_failed',
+        status: 'error',
+        command: '/inbox',
+        context: getEventContext(ctx, {textLength: ctx.message?.text?.length ?? null, error, reason: 'handler_failed'}),
+      })
+      await safelyIncrementErrorCounter(ctx)
+      await reply(ctx, INTERNAL_ERROR_MESSAGE)
+    }
   })
 
   bot.command('tags', async (ctx) => {

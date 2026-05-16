@@ -55,3 +55,7 @@ Bardak — Telegram-first продукт для сохранения личны�
 ### 012 — Future roadmap
 
 Добавили в docs будущие слои: внешнюю web-интеграцию, YooMoney payments, provider-independent entitlements и отдельные технические модули для payments/integrations.
+
+### 013 — Inbox
+
+Добавили разбор входящих в боте: `/inbox_count`, `/inbox`, preview следующего материала, inline-выбор тега и `Пропустить`, который оставляет материал во входящих.
