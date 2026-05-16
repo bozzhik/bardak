@@ -2,9 +2,9 @@ import {describe, expect, test} from 'bun:test'
 
 import type {UserIdentityPayload} from '@/convex/functions'
 
-import {BOTS_NOT_SUPPORTED_MESSAGE, INVALID_CONTEXT_MESSAGE, NOT_REGISTERED_MESSAGE, SEARCH_EMPTY_MESSAGE, SEARCH_USAGE_MESSAGE, START_MESSAGE} from '@/bot/messages'
+import {BOTS_NOT_SUPPORTED_MESSAGE, INVALID_CONTEXT_MESSAGE, NOT_REGISTERED_MESSAGE, PAGE_EMPTY_TAG_MESSAGE, PAGE_USAGE_MESSAGE, SEARCH_EMPTY_MESSAGE, SEARCH_USAGE_MESSAGE, START_MESSAGE} from '@/bot/messages'
 import {createFakeBotDataClient} from '@/convex/fake-client'
-import {handleCallback, handleDelete, handleEditedMessage, handleInbox, handleInboxCount, handleMessage, handleSearch, handleStart, handleTagDelete, handleTagNew, handleTagRename, handleTags, handleText, inboxSkipCallback, readStartPayload, tagDeleteCancelCallback, tagDeleteConfirmCallback, tagPickCallback} from '@/bot/flow'
+import {handleCallback, handleDelete, handleEditedMessage, handleInbox, handleInboxCount, handleMessage, handlePage, handleSearch, handleStart, handleTagDelete, handleTagNew, handleTagRename, handleTags, handleText, inboxSkipCallback, readStartPayload, tagDeleteCancelCallback, tagDeleteConfirmCallback, tagPickCallback} from '@/bot/flow'
 import type {NormalizedEntryMessage} from '@/telegram/normalize'
 
 const USER: UserIdentityPayload = {
@@ -459,6 +459,59 @@ describe('bot flow', () => {
 
     expect(await handleSearch({identity: USER, query: ''}, client)).toEqual({type: 'reply', text: SEARCH_USAGE_MESSAGE})
     expect(await handleSearch({identity: USER, query: 'ничего'}, client)).toEqual({type: 'reply', text: SEARCH_EMPTY_MESSAGE})
+  })
+
+  test('/page creates a public live page from a tag and formats the share link', async () => {
+    const client = createFakeBotDataClient({
+      createPageFromTagResult: {
+        status: 'created',
+        pageId: 'pages:work',
+        shareSlug: 'abcDEF_12345',
+        title: '#work',
+        activeEntryCount: 3,
+      },
+    })
+
+    const result = await handlePage({identity: USER, tag: '#Work', publicBaseUrl: 'https://bardak.wzx.cx'}, client)
+
+    expect(result).toEqual({type: 'reply', text: ['Создал страницу #work.', 'https://bardak.wzx.cx/s/abcDEF_12345', '', 'Сейчас там материалов: 3.'].join('\n')})
+    expect(client.createPageFromTagCalls).toEqual([{userId: 'users:test', tag: '#Work'}])
+  })
+
+  test('/page returns an existing public page for the same tag', async () => {
+    const client = createFakeBotDataClient({
+      createPageFromTagResult: {
+        status: 'existing',
+        pageId: 'pages:work',
+        shareSlug: 'abcDEF_12345',
+        title: '#work',
+        activeEntryCount: 2,
+      },
+    })
+
+    const result = await handlePage({identity: USER, tag: '#work', publicBaseUrl: 'https://bardak.wzx.cx/'}, client)
+
+    expect(result).toEqual({type: 'reply', text: ['Страница #work уже есть.', 'https://bardak.wzx.cx/s/abcDEF_12345', '', 'Сейчас там материалов: 2.'].join('\n')})
+  })
+
+  test('/page explains usage, missing tags, empty tags, and access rejections', async () => {
+    const missingClient = createFakeBotDataClient({
+      createPageFromTagResult: {status: 'missing_tag'},
+    })
+    const emptyClient = createFakeBotDataClient({
+      createPageFromTagResult: {status: 'empty_tag'},
+    })
+    const unregisteredClient = createFakeBotDataClient({
+      touchCommandResult: {status: 'not_registered'},
+    })
+
+    expect(await handlePage({identity: USER, tag: null, publicBaseUrl: 'https://bardak.wzx.cx'}, missingClient)).toEqual({type: 'reply', text: PAGE_USAGE_MESSAGE})
+    expect(await handlePage({identity: USER, tag: 'work', publicBaseUrl: 'https://bardak.wzx.cx'}, missingClient)).toEqual({type: 'reply', text: PAGE_USAGE_MESSAGE})
+    expect(await handlePage({identity: USER, tag: '#missing', publicBaseUrl: 'https://bardak.wzx.cx'}, missingClient)).toEqual({type: 'reply', text: 'Тег #missing не найден.'})
+    expect(await handlePage({identity: USER, tag: '#empty', publicBaseUrl: 'https://bardak.wzx.cx'}, emptyClient)).toEqual({type: 'reply', text: PAGE_EMPTY_TAG_MESSAGE})
+    expect(await handlePage({identity: USER, tag: '#work', publicBaseUrl: 'https://bardak.wzx.cx'}, unregisteredClient)).toEqual({type: 'reply', text: NOT_REGISTERED_MESSAGE})
+    expect(await handlePage({identity: GROUP_USER, tag: '#work', publicBaseUrl: 'https://bardak.wzx.cx'}, missingClient)).toEqual({type: 'reply', text: 'Пока сохраняю только в личном чате. Напиши мне напрямую.'})
+    expect(missingClient.createPageFromTagCalls).toEqual([{userId: 'users:test', tag: '#missing'}])
   })
 
   test('active tag flow consumes the next hashtag message instead of saving a new entry', async () => {

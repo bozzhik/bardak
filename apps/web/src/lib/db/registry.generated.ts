@@ -3,7 +3,7 @@
 import {api} from '@/lib/convex'
 import type {TableNames} from '@convex/_generated/dataModel'
 
-export const dbTables = ['waitlist', 'users', 'entries', 'tags', 'entryTags', 'flows', 'botEvents'] as const
+export const dbTables = ['waitlist', 'users', 'entries', 'tags', 'entryTags', 'pages', 'pageItems', 'flows', 'botEvents'] as const
 export type DbTable = (typeof dbTables)[number]
 
 export const dbAdminApi = {
@@ -46,6 +46,22 @@ export const dbAdminApi = {
     create: api.tables.entryTags.create,
     update: api.tables.entryTags.update,
     remove: api.tables.entryTags.remove,
+  },
+  pages: {
+    length: api.tables.pages.length,
+    list: api.tables.pages.list,
+    getById: api.tables.pages.getById,
+    create: api.tables.pages.create,
+    update: api.tables.pages.update,
+    remove: api.tables.pages.remove,
+  },
+  pageItems: {
+    length: api.tables.pageItems.length,
+    list: api.tables.pageItems.list,
+    getById: api.tables.pageItems.getById,
+    create: api.tables.pageItems.create,
+    update: api.tables.pageItems.update,
+    remove: api.tables.pageItems.remove,
   },
   flows: {
     length: api.tables.flows.length,

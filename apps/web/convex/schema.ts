@@ -122,6 +122,34 @@ export default defineSchema({
     .index('by_userId_and_entryId', ['userId', 'entryId'])
     .index('by_userId_and_entryId_and_tagId', ['userId', 'entryId', 'tagId']),
 
+  pages: defineTable({
+    userId: v.id('users'),
+    source: v.literal('tag'),
+    tagId: v.id('tags'),
+    title: v.string(),
+    status: v.union(v.literal('published'), v.literal('archived')),
+    shareSlug: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    archivedAt: v.union(v.number(), v.null()),
+  })
+    .index('by_shareSlug', ['shareSlug'])
+    .index('by_userId_and_tagId', ['userId', 'tagId'])
+    .index('by_userId_and_status_and_createdAt', ['userId', 'status', 'createdAt']),
+
+  pageItems: defineTable({
+    userId: v.id('users'),
+    pageId: v.id('pages'),
+    entryId: v.id('entries'),
+    status: v.union(v.literal('visible'), v.literal('hidden')),
+    position: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_pageId_and_position', ['pageId', 'position'])
+    .index('by_pageId_and_status_and_position', ['pageId', 'status', 'position'])
+    .index('by_userId_and_pageId_and_entryId', ['userId', 'pageId', 'entryId']),
+
   flows: defineTable({
     userId: v.id('users'),
     chatId: v.number(),

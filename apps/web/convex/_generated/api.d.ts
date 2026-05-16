@@ -12,6 +12,8 @@ import type * as tables_botEvents from "../tables/botEvents.js";
 import type * as tables_entries from "../tables/entries.js";
 import type * as tables_entryTags from "../tables/entryTags.js";
 import type * as tables_flows from "../tables/flows.js";
+import type * as tables_pageItems from "../tables/pageItems.js";
+import type * as tables_pages from "../tables/pages.js";
 import type * as tables_tags from "../tables/tags.js";
 import type * as tables_users from "../tables/users.js";
 import type * as tables_waitlist from "../tables/waitlist.js";
@@ -27,6 +29,8 @@ declare const fullApi: ApiFromModules<{
   "tables/entries": typeof tables_entries;
   "tables/entryTags": typeof tables_entryTags;
   "tables/flows": typeof tables_flows;
+  "tables/pageItems": typeof tables_pageItems;
+  "tables/pages": typeof tables_pages;
   "tables/tags": typeof tables_tags;
   "tables/users": typeof tables_users;
   "tables/waitlist": typeof tables_waitlist;

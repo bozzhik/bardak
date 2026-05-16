@@ -8,6 +8,13 @@ function getRequiredEnv(name: string): string {
 
 type RuntimeLabel = 'dev' | 'prod'
 
+function getPublicBaseUrl(runtime: RuntimeLabel): string {
+  const value = process.env.PUBLIC_BASE_URL?.trim()
+  if (value) return value.replace(/\/+$/, '')
+  if (runtime === 'dev') return 'http://localhost:3000'
+  throw new Error('[bot] Missing required environment variable: PUBLIC_BASE_URL')
+}
+
 function getRuntimeLabel(): RuntimeLabel {
   const value = process.env.BOT_RUNTIME?.trim()
   if (value === 'dev' || value === 'prod') return value
@@ -19,6 +26,7 @@ const runtime = getRuntimeLabel()
 export const env = {
   botToken: getRequiredEnv('TELEGRAM_BOT_TOKEN'),
   convexUrl: getRequiredEnv('NEXT_PUBLIC_CONVEX_URL'),
+  publicBaseUrl: getPublicBaseUrl(runtime),
   runtime,
   logPrefix: `[bot:${runtime}]`,
 } as const

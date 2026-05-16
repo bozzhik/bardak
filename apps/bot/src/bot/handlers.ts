@@ -1,12 +1,12 @@
 import {type Bot, type Context} from 'grammy'
 
 import type {RecordBotEventArgs, UserIdentityPayload} from '@/convex/functions'
-import {BOTS_NOT_SUPPORTED_MESSAGE, HELP_MESSAGE, INBOX_EMPTY_MESSAGE, INTERNAL_ERROR_MESSAGE, INVALID_CONTEXT_MESSAGE, NOT_REGISTERED_MESSAGE, PRIVATE_ONLY_MESSAGE, SEARCH_INVALID_KIND_MESSAGE, SEARCH_USAGE_MESSAGE, TAG_DELETE_USAGE_MESSAGE, TAG_NEW_USAGE_MESSAGE, TAG_RENAME_USAGE_MESSAGE} from '@/bot/messages'
+import {BOTS_NOT_SUPPORTED_MESSAGE, HELP_MESSAGE, INBOX_EMPTY_MESSAGE, INTERNAL_ERROR_MESSAGE, INVALID_CONTEXT_MESSAGE, NOT_REGISTERED_MESSAGE, PAGE_USAGE_MESSAGE, PRIVATE_ONLY_MESSAGE, SEARCH_INVALID_KIND_MESSAGE, SEARCH_USAGE_MESSAGE, TAG_DELETE_USAGE_MESSAGE, TAG_NEW_USAGE_MESSAGE, TAG_RENAME_USAGE_MESSAGE} from '@/bot/messages'
 
 import {env} from '@/config/env'
 import {getUserIdentity} from '@/bot/context'
-import {handleCallback, handleDelete, handleEditedMessage, handleInbox, handleInboxCount, handleMessage, handleSearch, handleStart, handleTagDelete, handleTagNew, handleTagRename, handleTags, handleTextMessage, readStartPayload, type ReplyButton, type ReplyResult} from '@/bot/flow'
-import {archiveEntryBySourceMessage, cancelTagFlow, completeDescriptionFlow, completeTagFlow, completeTagFlowById, countInbox, ensureTag, findTag, getActiveFlow, getNextInbox, incrementErrorCounter, listTags, recordBotEvent, registerOnStart, removeTag, renameTag, saveEntry, searchEntries, touchOnCommand, touchOnText, updateEntryFromEdit, upsertFlow} from '@/convex/client'
+import {handleCallback, handleDelete, handleEditedMessage, handleInbox, handleInboxCount, handleMessage, handlePage, handleSearch, handleStart, handleTagDelete, handleTagNew, handleTagRename, handleTags, handleTextMessage, readStartPayload, type ReplyButton, type ReplyResult} from '@/bot/flow'
+import {archiveEntryBySourceMessage, cancelTagFlow, completeDescriptionFlow, completeTagFlow, completeTagFlowById, countInbox, createPageFromTag, ensureTag, findTag, getActiveFlow, getNextInbox, incrementErrorCounter, listTags, recordBotEvent, registerOnStart, removeTag, renameTag, saveEntry, searchEntries, touchOnCommand, touchOnText, updateEntryFromEdit, upsertFlow} from '@/convex/client'
 import {normalizeTelegramMessage, type EntryKind, type TelegramMessageLike} from '@/telegram/normalize'
 
 const botDataClient = {
@@ -17,6 +17,7 @@ const botDataClient = {
   countInbox,
   getNextInbox,
   searchEntries,
+  createPageFromTag,
   ensureTag,
   renameTag,
   findTag,
@@ -59,7 +60,7 @@ async function replyWithResult(ctx: Context, result: ReplyResult): Promise<void>
 }
 
 function isRejectedText(text: string): boolean {
-  return text === INVALID_CONTEXT_MESSAGE || text === BOTS_NOT_SUPPORTED_MESSAGE || text === PRIVATE_ONLY_MESSAGE || text === NOT_REGISTERED_MESSAGE || text === SEARCH_USAGE_MESSAGE || text === SEARCH_INVALID_KIND_MESSAGE || text === TAG_NEW_USAGE_MESSAGE || text === TAG_RENAME_USAGE_MESSAGE || text === TAG_DELETE_USAGE_MESSAGE
+  return text === INVALID_CONTEXT_MESSAGE || text === BOTS_NOT_SUPPORTED_MESSAGE || text === PRIVATE_ONLY_MESSAGE || text === NOT_REGISTERED_MESSAGE || text === SEARCH_USAGE_MESSAGE || text === SEARCH_INVALID_KIND_MESSAGE || text === PAGE_USAGE_MESSAGE || text === TAG_NEW_USAGE_MESSAGE || text === TAG_RENAME_USAGE_MESSAGE || text === TAG_DELETE_USAGE_MESSAGE
 }
 
 function rejectedReason(text: string): string | null {
@@ -69,6 +70,7 @@ function rejectedReason(text: string): string | null {
   if (text === NOT_REGISTERED_MESSAGE) return 'not_registered'
   if (text === SEARCH_USAGE_MESSAGE) return 'empty_query'
   if (text === SEARCH_INVALID_KIND_MESSAGE) return 'invalid_kind'
+  if (text === PAGE_USAGE_MESSAGE) return 'invalid_tag'
   if (text === TAG_NEW_USAGE_MESSAGE || text === TAG_RENAME_USAGE_MESSAGE || text === TAG_DELETE_USAGE_MESSAGE) return 'invalid_tag'
   return null
 }
@@ -344,6 +346,41 @@ export function registerBotHandlers(bot: Bot): void {
         action: 'search_failed',
         status: 'error',
         command: '/search',
+        context: getEventContext(ctx, {textLength: ctx.message?.text?.length ?? null, error, reason: 'handler_failed'}),
+      })
+      await safelyIncrementErrorCounter(ctx)
+      await reply(ctx, INTERNAL_ERROR_MESSAGE)
+    }
+  })
+
+  bot.command('page', async (ctx) => {
+    const identity = getUserIdentity(ctx)
+    if (identity !== null && !identity.isBotAccount) {
+      logHandledCommand('/page', identity)
+    }
+
+    try {
+      const result = await handlePage({identity, tag: readStartPayload(ctx.match), publicBaseUrl: env.publicBaseUrl}, botDataClient)
+      await safelyRecordBotEvent({
+        ...getEventActor(identity),
+        kind: 'command',
+        action: 'page',
+        status: isRejectedText(result.text) ? 'rejected' : 'ok',
+        command: '/page',
+        context: getEventContext(ctx, {
+          textLength: ctx.message?.text?.length ?? null,
+          reason: rejectedReason(result.text),
+        }),
+      })
+      await replyWithResult(ctx, result)
+    } catch (error) {
+      console.error(`${env.logPrefix} command=/page failed`, error)
+      await safelyRecordBotEvent({
+        ...getEventActor(identity),
+        kind: 'error',
+        action: 'page_failed',
+        status: 'error',
+        command: '/page',
         context: getEventContext(ctx, {textLength: ctx.message?.text?.length ?? null, error, reason: 'handler_failed'}),
       })
       await safelyIncrementErrorCounter(ctx)

@@ -115,6 +115,25 @@ export type SearchEntriesResult = {
 
 export const searchEntriesRef = makeFunctionReference<'query', SearchEntriesArgs, SearchEntriesResult>('tables/entries:search')
 
+export type CreatePageFromTagArgs = {
+  userId: string
+  tag: string
+}
+
+export type CreatePageFromTagResult =
+  | {
+      status: 'created' | 'existing'
+      pageId: string
+      shareSlug: string
+      title: string
+      activeEntryCount: number
+    }
+  | {
+      status: 'invalid_tag' | 'missing_tag' | 'empty_tag'
+    }
+
+export const createPageFromTagRef = makeFunctionReference<'mutation', CreatePageFromTagArgs, CreatePageFromTagResult>('tables/pages:createFromTag')
+
 export type EnsureTagArgs = {
   userId: string
   tag: string

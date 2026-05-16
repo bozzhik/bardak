@@ -22,6 +22,10 @@ export const botCommands: BotCommand[] = [
     description: 'Найти материалы',
   },
   {
+    command: 'page',
+    description: 'Создать публичную страницу',
+  },
+  {
     command: 'tags',
     description: 'Показать теги',
   },

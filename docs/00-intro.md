@@ -71,3 +71,7 @@ Bardak — Telegram-first продукт для сохранения личны�
 ### 016 — Search
 
 Добавили первый search-layer: общий parser для `text + #tag + type:<kind>`, Convex query `entries:search` и команду `/search`, которая ищет активные материалы по тексту, тегам, типу и ручным описаниям без Telegram API в тестах.
+
+### 017 — Pages and sharing
+
+Добавили первый sharing-flow: `/page #tag` создаёт или возвращает live-страницу тега, публичная ссылка `/s/<shareSlug>` открывается без авторизации и показывает новые активные материалы с metadata-preview для медиа.

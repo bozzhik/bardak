@@ -1,6 +1,6 @@
 export const START_MESSAGE = ['Привет! Я на связи и готов к работе', '', 'Если забудешь, что тут есть — загляни в /help'].join('\n')
 
-export const HELP_MESSAGE = ['Коротко, что умею:', '', '/start — запуск бота', '/help — показать справку', '/inbox — разобрать входящие', '/inbox_count — сколько во входящих', '/search договор #tag type:document — поиск', '/tags — список тегов', '/tag_new #tag — создать тег', '/tag_rename #old #new — переименовать тег', '/tag_delete #tag — удалить тег', '/delete — убрать материал через reply'].join('\n')
+export const HELP_MESSAGE = ['Коротко, что умею:', '', '/start — запуск бота', '/help — показать справку', '/inbox — разобрать входящие', '/inbox_count — сколько во входящих', '/search договор #tag type:document — поиск', '/page #tag — публичная страница тега', '/tags — список тегов', '/tag_new #tag — создать тег', '/tag_rename #old #new — переименовать тег', '/tag_delete #tag — удалить тег', '/delete — убрать материал через reply'].join('\n')
 
 export const NOT_REGISTERED_MESSAGE = 'Сначала нужно запустить бота с помощью /start'
 export const INVALID_CONTEXT_MESSAGE = 'Не вышло разобраться, кто ты или какой чат. Попробуй ещё раз или напиши разарботчику – @bozzhik'
@@ -20,6 +20,8 @@ export const ENTRY_NOT_FOUND_MESSAGE = 'Не нашёл сохранённый �
 export const SEARCH_USAGE_MESSAGE = 'Напиши запрос: /search текст, /search #tag или /search type:photo.'
 export const SEARCH_EMPTY_MESSAGE = 'Ничего не нашёл.'
 export const SEARCH_INVALID_KIND_MESSAGE = 'Не знаю такой тип. Используй text, link, photo, voice, audio, document, video, sticker или unsupported.'
+export const PAGE_USAGE_MESSAGE = 'Напиши тег в формате /page #tag.'
+export const PAGE_EMPTY_TAG_MESSAGE = 'У этого тега пока нет активных материалов.'
 export const TAG_FORMAT_MESSAGE = 'Напиши тег в формате #example.'
 export const TAGS_EMPTY_MESSAGE = 'Тегов пока нет. Сохрани материал без тега, затем напиши #example.'
 export const TAG_NEW_USAGE_MESSAGE = 'Напиши тег в формате /tag_new #example.'
@@ -95,4 +97,12 @@ export function searchResultsMessage(entries: SearchEntryForMessage[], isTruncat
   })
 
   return ['Нашёл:', '', ...rows, ...(isTruncated ? ['', 'Показал первые результаты. Уточни запрос, если нужно.'] : [])].join('\n')
+}
+
+export function pageCreatedMessage(title: string, url: string, activeEntryCount: number): string {
+  return [`Создал страницу ${title}.`, url, '', `Сейчас там материалов: ${activeEntryCount}.`].join('\n')
+}
+
+export function pageExistingMessage(title: string, url: string, activeEntryCount: number): string {
+  return [`Страница ${title} уже есть.`, url, '', `Сейчас там материалов: ${activeEntryCount}.`].join('\n')
 }

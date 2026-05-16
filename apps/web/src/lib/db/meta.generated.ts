@@ -355,6 +355,37 @@ export const dbMeta = {
       createdAt: {kind: 'number', optional: false},
     },
   },
+  pages: {
+    fields: {
+      userId: {kind: 'id', table: 'users', optional: false},
+      source: {kind: 'literal', valueType: 'string', values: ['tag'], optional: false},
+      tagId: {kind: 'id', table: 'tags', optional: false},
+      title: {kind: 'string', optional: false},
+      status: {kind: 'enum', valueType: 'string', values: ['published', 'archived'], optional: false},
+      shareSlug: {kind: 'string', optional: false},
+      createdAt: {kind: 'number', optional: false},
+      updatedAt: {kind: 'number', optional: false},
+      archivedAt: {
+        kind: 'union',
+        options: [
+          {kind: 'number', optional: false},
+          {kind: 'null', optional: false},
+        ],
+        optional: false,
+      },
+    },
+  },
+  pageItems: {
+    fields: {
+      userId: {kind: 'id', table: 'users', optional: false},
+      pageId: {kind: 'id', table: 'pages', optional: false},
+      entryId: {kind: 'id', table: 'entries', optional: false},
+      status: {kind: 'enum', valueType: 'string', values: ['visible', 'hidden'], optional: false},
+      position: {kind: 'number', optional: false},
+      createdAt: {kind: 'number', optional: false},
+      updatedAt: {kind: 'number', optional: false},
+    },
+  },
   flows: {
     fields: {
       userId: {kind: 'id', table: 'users', optional: false},

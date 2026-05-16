@@ -1,5 +1,5 @@
 import type {BotDataClient} from '@/bot/flow'
-import type {ArchiveEntryBySourceMessageArgs, ArchiveEntryBySourceMessageResult, CancelTagFlowArgs, CancelTagFlowResult, CompleteDescriptionFlowArgs, CompleteDescriptionFlowResult, CompleteTagFlowByIdArgs, CompleteTagFlowByIdResult, CompleteTagFlowArgs, CompleteTagFlowResult, CountInboxArgs, CountInboxResult, EnsureTagArgs, EnsureTagResult, FindTagArgs, FindTagResult, GetActiveFlowArgs, GetActiveFlowResult, ListTagsArgs, ListTagsResult, NextInboxArgs, NextInboxResult, RegisterOnStartArgs, RegisterOnStartResult, RemoveTagArgs, RemoveTagResult, RenameTagArgs, RenameTagResult, SaveEntryArgs, SaveEntryResult, SearchEntriesArgs, SearchEntriesResult, TouchOnCommandResult, TouchOnTextResult, UpdateEntryFromEditArgs, UpdateEntryFromEditResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
+import type {ArchiveEntryBySourceMessageArgs, ArchiveEntryBySourceMessageResult, CancelTagFlowArgs, CancelTagFlowResult, CompleteDescriptionFlowArgs, CompleteDescriptionFlowResult, CompleteTagFlowByIdArgs, CompleteTagFlowByIdResult, CompleteTagFlowArgs, CompleteTagFlowResult, CountInboxArgs, CountInboxResult, CreatePageFromTagArgs, CreatePageFromTagResult, EnsureTagArgs, EnsureTagResult, FindTagArgs, FindTagResult, GetActiveFlowArgs, GetActiveFlowResult, ListTagsArgs, ListTagsResult, NextInboxArgs, NextInboxResult, RegisterOnStartArgs, RegisterOnStartResult, RemoveTagArgs, RemoveTagResult, RenameTagArgs, RenameTagResult, SaveEntryArgs, SaveEntryResult, SearchEntriesArgs, SearchEntriesResult, TouchOnCommandResult, TouchOnTextResult, UpdateEntryFromEditArgs, UpdateEntryFromEditResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
 
 type FakeBotDataClientOptions = {
   registerResult?: RegisterOnStartResult
@@ -9,6 +9,7 @@ type FakeBotDataClientOptions = {
   countInboxResult?: CountInboxResult
   nextInboxResult?: NextInboxResult
   searchEntriesResult?: SearchEntriesResult
+  createPageFromTagResult?: CreatePageFromTagResult
   ensureTagResult?: EnsureTagResult
   renameTagResult?: RenameTagResult
   findTagResult?: FindTagResult
@@ -32,6 +33,7 @@ export type FakeBotDataClient = BotDataClient & {
   countInboxCalls: CountInboxArgs[]
   nextInboxCalls: NextInboxArgs[]
   searchEntriesCalls: SearchEntriesArgs[]
+  createPageFromTagCalls: CreatePageFromTagArgs[]
   ensureTagCalls: EnsureTagArgs[]
   renameTagCalls: RenameTagArgs[]
   findTagCalls: FindTagArgs[]
@@ -55,6 +57,7 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
   const countInboxCalls: CountInboxArgs[] = []
   const nextInboxCalls: NextInboxArgs[] = []
   const searchEntriesCalls: SearchEntriesArgs[] = []
+  const createPageFromTagCalls: CreatePageFromTagArgs[] = []
   const ensureTagCalls: EnsureTagArgs[] = []
   const renameTagCalls: RenameTagArgs[] = []
   const findTagCalls: FindTagArgs[] = []
@@ -91,6 +94,13 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
   const searchEntriesResult = options.searchEntriesResult ?? {
     items: [],
     isTruncated: false,
+  }
+  const createPageFromTagResult = options.createPageFromTagResult ?? {
+    status: 'created',
+    pageId: 'pages:test',
+    shareSlug: 'share_test',
+    title: '#work',
+    activeEntryCount: 1,
   }
   const ensureTagResult = options.ensureTagResult ?? {
     status: 'created',
@@ -154,6 +164,7 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
     countInboxCalls,
     nextInboxCalls,
     searchEntriesCalls,
+    createPageFromTagCalls,
     ensureTagCalls,
     renameTagCalls,
     findTagCalls,
@@ -194,6 +205,10 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
     async searchEntries(args) {
       searchEntriesCalls.push(args)
       return searchEntriesResult
+    },
+    async createPageFromTag(args) {
+      createPageFromTagCalls.push(args)
+      return createPageFromTagResult
     },
     async ensureTag(args) {
       ensureTagCalls.push(args)
