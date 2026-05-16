@@ -51,3 +51,7 @@ Bardak — Telegram-first продукт для сохранения личны�
 ### 011 — Tag management
 
 Закрыли управление тегами в боте: `/tag_rename`, `/tag_delete` с подтверждением и inline-кнопки выбора тега для активного входящего материала.
+
+### 012 — Future roadmap
+
+Добавили в docs будущие слои: внешнюю web-интеграцию, YooMoney payments, provider-independent entitlements и отдельные технические модули для payments/integrations.

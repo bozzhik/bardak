@@ -15,6 +15,7 @@
 | UI           | Tailwind CSS v4 + shadcn/ui `base-nova` + Lucide             |
 | AI           | OpenRouter как будущий gateway к моделям                     |
 | Auth         | Telegram Login Widget / Telegram WebApp initData             |
+| Payments     | YooMoney/U-Money как первый планируемый provider             |
 | Деплой       | Docker + Coolify на VPS                                      |
 | Аналитика    | Yandex Metrika подключена, PostHog позже                     |
 | Логирование  | pino позже                                                   |
@@ -60,6 +61,8 @@ bardak/
 │   ├── shared/       — общие утилиты и типы
 │   ├── domain/       — бизнес-логика и pure-функции              [создать]
 │   ├── telegram/     — нормализация Telegram update/message      [создать]
+│   ├── payments/     — provider adapters и entitlement rules     [создать позже]
+│   ├── integrations/ — внешние клиенты и handshake-контракты     [создать позже]
 │   ├── ai/           — OpenRouter клиент, промпты, AI pipelines  [создать позже]
 │   ├── eslint-config/
 │   └── typescript-config/
@@ -223,6 +226,8 @@ Web остаётся важной частью продукта, но не те�
 - в будущем публичные страницы по `shareSlug`;
 - позже полноценный кабинет.
 
+Внешняя web-интеграция живёт как отдельный клиент/adapter поверх тех же Convex-функций. Она не должна создавать собственные модели материалов, тегов, страниц или оплат; если нужен отдельный handshake, он проектируется как тонкий auth/session слой.
+
 UI-правила:
 
 - shadcn/ui primitives в `apps/web/src/components/primitives`;
@@ -247,6 +252,22 @@ AI не должен быть обязательным для core-flow. Сна�
 - ответы на вопросы по личной базе.
 
 Логика AI должна жить в `packages/ai`, а не внутри Telegram handlers.
+
+---
+
+## Payments
+
+Оплата добавляется после минимального bot-MVP, когда есть понятный бесплатный опыт и ограничения.
+
+Правила:
+
+- первый планируемый provider — YooMoney/U-Money;
+- provider-specific код держать в `packages/payments` или отдельном adapter-модуле;
+- доступ пользователя хранить как provider-independent `entitlement`;
+- payment callbacks обрабатывать идемпотентно;
+- проверять подпись/секрет callback до любых изменений доступа;
+- provider payloads можно хранить для диагностики, но не смешивать с `users.profile`;
+- секреты платежей живут только в env.
 
 ---
 
