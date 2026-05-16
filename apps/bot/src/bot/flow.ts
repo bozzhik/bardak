@@ -1,8 +1,8 @@
-import {extractTagTokens, normalizeTagToken} from '@repo/shared'
+import {extractTagTokens, normalizeTagToken, parseSearchInput} from '@repo/shared'
 
-import type {ArchiveEntryBySourceMessageArgs, ArchiveEntryBySourceMessageResult, CancelTagFlowArgs, CancelTagFlowResult, CompleteDescriptionFlowArgs, CompleteDescriptionFlowResult, CompleteTagFlowByIdArgs, CompleteTagFlowByIdResult, CompleteTagFlowArgs, CompleteTagFlowResult, CountInboxArgs, CountInboxResult, EnsureTagArgs, EnsureTagResult, FindTagArgs, FindTagResult, GetActiveFlowArgs, GetActiveFlowResult, ListTagsArgs, ListTagsResult, NextInboxArgs, NextInboxResult, RegisterOnStartArgs, RegisterOnStartResult, RemoveTagArgs, RemoveTagResult, RenameTagArgs, RenameTagResult, SaveEntryArgs, SaveEntryResult, TouchOnCommandResult, TouchOnTextResult, UpdateEntryFromEditArgs, UpdateEntryFromEditResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
+import type {ArchiveEntryBySourceMessageArgs, ArchiveEntryBySourceMessageResult, CancelTagFlowArgs, CancelTagFlowResult, CompleteDescriptionFlowArgs, CompleteDescriptionFlowResult, CompleteTagFlowByIdArgs, CompleteTagFlowByIdResult, CompleteTagFlowArgs, CompleteTagFlowResult, CountInboxArgs, CountInboxResult, EnsureTagArgs, EnsureTagResult, FindTagArgs, FindTagResult, GetActiveFlowArgs, GetActiveFlowResult, ListTagsArgs, ListTagsResult, NextInboxArgs, NextInboxResult, RegisterOnStartArgs, RegisterOnStartResult, RemoveTagArgs, RemoveTagResult, RenameTagArgs, RenameTagResult, SaveEntryArgs, SaveEntryResult, SearchEntriesArgs, SearchEntriesResult, TouchOnCommandResult, TouchOnTextResult, UpdateEntryFromEditArgs, UpdateEntryFromEditResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
 
-import {ACTIVE_FLOW_MESSAGE, BOTS_NOT_SUPPORTED_MESSAGE, DELETE_REPLY_USAGE_MESSAGE, DESCRIPTION_SAVED_MESSAGE, EDITED_ENTRY_MESSAGE, EDITED_ENTRY_NOT_FOUND_MESSAGE, ENTRY_ARCHIVED_MESSAGE, ENTRY_NOT_FOUND_MESSAGE, INBOX_EMPTY_MESSAGE, INBOX_SKIPPED_MESSAGE, INVALID_CONTEXT_MESSAGE, NEED_DESCRIPTION_MESSAGE, NO_ACTIVE_FLOW_MESSAGE, NOT_REGISTERED_MESSAGE, PRIVATE_ONLY_MESSAGE, SAVED_TO_INBOX_MESSAGE, START_MESSAGE, TAGS_EMPTY_MESSAGE, TAG_DELETE_CANCELLED_MESSAGE, TAG_DELETE_USAGE_MESSAGE, TAG_FORMAT_MESSAGE, TAG_NEW_USAGE_MESSAGE, TAG_RENAME_USAGE_MESSAGE, UNKNOWN_ACTION_MESSAGE, UNSUPPORTED_DESCRIPTION_MESSAGE, inboxCountMessage, inboxItemMessage, savedWithTagsMessage, tagCreatedMessage, tagDeleteConfirmMessage, tagDeletedMessage, tagExistsMessage, tagNotFoundMessage, tagRenamedMessage, tagsListMessage} from '@/bot/messages'
+import {ACTIVE_FLOW_MESSAGE, BOTS_NOT_SUPPORTED_MESSAGE, DELETE_REPLY_USAGE_MESSAGE, DESCRIPTION_SAVED_MESSAGE, EDITED_ENTRY_MESSAGE, EDITED_ENTRY_NOT_FOUND_MESSAGE, ENTRY_ARCHIVED_MESSAGE, ENTRY_NOT_FOUND_MESSAGE, INBOX_EMPTY_MESSAGE, INBOX_SKIPPED_MESSAGE, INVALID_CONTEXT_MESSAGE, NEED_DESCRIPTION_MESSAGE, NO_ACTIVE_FLOW_MESSAGE, NOT_REGISTERED_MESSAGE, PRIVATE_ONLY_MESSAGE, SAVED_TO_INBOX_MESSAGE, SEARCH_EMPTY_MESSAGE, SEARCH_INVALID_KIND_MESSAGE, SEARCH_USAGE_MESSAGE, START_MESSAGE, TAGS_EMPTY_MESSAGE, TAG_DELETE_CANCELLED_MESSAGE, TAG_DELETE_USAGE_MESSAGE, TAG_FORMAT_MESSAGE, TAG_NEW_USAGE_MESSAGE, TAG_RENAME_USAGE_MESSAGE, UNKNOWN_ACTION_MESSAGE, UNSUPPORTED_DESCRIPTION_MESSAGE, inboxCountMessage, inboxItemMessage, savedWithTagsMessage, searchResultsMessage, tagCreatedMessage, tagDeleteConfirmMessage, tagDeletedMessage, tagExistsMessage, tagNotFoundMessage, tagRenamedMessage, tagsListMessage} from '@/bot/messages'
 import {normalizeTelegramMessage, type NormalizedEntryMessage} from '@/telegram/normalize'
 
 export type BotDataClient = {
@@ -12,6 +12,7 @@ export type BotDataClient = {
   listTags(args: ListTagsArgs): Promise<ListTagsResult>
   countInbox(args: CountInboxArgs): Promise<CountInboxResult>
   getNextInbox(args: NextInboxArgs): Promise<NextInboxResult>
+  searchEntries(args: SearchEntriesArgs): Promise<SearchEntriesResult>
   ensureTag(args: EnsureTagArgs): Promise<EnsureTagResult>
   renameTag(args: RenameTagArgs): Promise<RenameTagResult>
   findTag(args: FindTagArgs): Promise<FindTagResult>
@@ -72,6 +73,11 @@ export type TagsFlowInput = {
 
 export type InboxFlowInput = {
   identity: UserIdentityPayload | null
+}
+
+export type SearchFlowInput = {
+  identity: UserIdentityPayload | null
+  query: string | null
 }
 
 export type TagNewFlowInput = {
@@ -282,6 +288,49 @@ export async function handleInbox(input: InboxFlowInput, client: BotDataClient):
     text: inboxItemMessage(buildInboxPreview(next.entry)),
     buttons: inboxButtons(existingTags, next.entry.id),
   }
+}
+
+export async function handleSearch(input: SearchFlowInput, client: BotDataClient): Promise<ReplyResult> {
+  const {identity} = input
+  if (identity === null) {
+    return {type: 'reply', text: INVALID_CONTEXT_MESSAGE}
+  }
+
+  if (identity.isBotAccount) {
+    return {type: 'reply', text: BOTS_NOT_SUPPORTED_MESSAGE}
+  }
+
+  if (!isPrivateChat(identity)) {
+    return {type: 'reply', text: PRIVATE_ONLY_MESSAGE}
+  }
+
+  const parsed = parseSearchInput(input.query ?? '')
+  if (parsed.status === 'empty') {
+    return {type: 'reply', text: SEARCH_USAGE_MESSAGE}
+  }
+
+  if (parsed.status === 'invalid_kind') {
+    return {type: 'reply', text: SEARCH_INVALID_KIND_MESSAGE}
+  }
+
+  const result = await client.touchOnCommand(identity)
+  if (result.status === 'not_registered') {
+    return {type: 'reply', text: NOT_REGISTERED_MESSAGE}
+  }
+
+  const found = await client.searchEntries({
+    userId: result.userId,
+    text: parsed.criteria.text,
+    tags: parsed.criteria.tags,
+    kind: parsed.criteria.kind,
+    limit: 5,
+  })
+
+  if (found.items.length === 0) {
+    return {type: 'reply', text: SEARCH_EMPTY_MESSAGE}
+  }
+
+  return {type: 'reply', text: searchResultsMessage(found.items, found.isTruncated)}
 }
 
 export async function handleTagNew(input: TagNewFlowInput, client: BotDataClient): Promise<ReplyResult> {

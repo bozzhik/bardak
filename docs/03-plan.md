@@ -388,33 +388,44 @@
 **Решения:**
 
 - Сначала обычный поиск без AI.
-- Поиск по тексту использует сохранённый text/description.
+- Search criteria живёт как общий contract для bot/web/AI: `text`, `tags`, `kind`, `limit`.
+- Поиск по тексту использует сохранённый text/description/url/file metadata.
 - Поиск по тегу использует `entryTags`.
 - Поиск по типу использует индекс по `userId + kind`.
+- Первый слой возвращает bounded results и не делает full-text ranking.
+- `/search #tag`, `/search text` и `/search type:photo` закрывают tag/type/text поиск без отдельной команды `/tag`.
 
 **Работы:**
 
-- [ ] Команда `/search <query>`.
-- [ ] Команда `/tag <name>` или callback из списка тегов.
-- [ ] Фильтр по типу.
-- [ ] Пагинация или bounded results.
-- [ ] Preview результатов в Telegram.
+- [x] Общий parser search input в `packages/shared`.
+- [x] Convex query `entries:search`.
+- [x] Команда `/search <query>`.
+- [x] Поиск по тегу через `/search #tag`.
+- [x] Фильтр по типу через `type:<kind>` / `kind:<kind>`.
+- [x] Bounded results.
+- [x] Preview результатов в Telegram.
 
 **Тесты:**
 
-- поиск не возвращает чужие материалы;
-- поиск по тегу работает через связи;
-- поиск по тексту ищет по text/description;
-- выдача ограничена и детерминирована.
+- [x] parser разбирает text/tag/kind и отсекает пустой/невалидный запрос;
+- [x] поиск не возвращает чужие материалы;
+- [x] поиск не возвращает archived materials;
+- [x] поиск по тегу работает через `entryTags`;
+- [x] поиск по тексту ищет по text/description;
+- [x] поиск по типу ограничивает выдачу kind;
+- [x] bot-flow форматирует preview без реального Telegram API.
 
 **DoD:**
 
-- [ ] Можно найти сохранённый текст.
-- [ ] Можно найти материалы по тегу.
-- [ ] Можно найти медиа по ручному описанию.
+- [x] Можно найти сохранённый текст.
+- [x] Можно найти материалы по тегу.
+- [x] Можно найти материалы по типу.
+- [x] Можно найти медиа по ручному описанию.
+- [x] Search contract пригоден для будущего web-слоя.
 
 **Позже, отдельными слоями:**
 
+- Full-text/search index с денормализованным `searchText`, когда появится объём данных.
 - Semantic search по embeddings/AI-index.
 - Search ranking по свежести, тегам, типу, source metadata и частоте использования.
 - Saved filters и быстрые команды для частых поисков.

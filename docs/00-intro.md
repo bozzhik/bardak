@@ -67,3 +67,7 @@ Bardak — Telegram-first продукт для сохранения личны�
 ### 015 — Message types
 
 Добавили приём разных Telegram-сообщений: link, photo, voice, audio, document, video, sticker и unsupported сохраняются как entries, metadata остаётся в `telegram`, материалы без текста запускают ручной `description` flow, edits синхронизируются, а явное удаление работает через reply `/delete`.
+
+### 016 — Search
+
+Добавили первый search-layer: общий parser для `text + #tag + type:<kind>`, Convex query `entries:search` и команду `/search`, которая ищет активные материалы по тексту, тегам, типу и ручным описаниям без Telegram API в тестах.

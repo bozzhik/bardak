@@ -1,7 +1,7 @@
 import {normalizeTagToken} from '@repo/shared'
 import {mutation, query} from '@convex/_generated/server'
-import type {MutationCtx} from '@convex/_generated/server'
-import type {Id} from '@convex/_generated/dataModel'
+import type {MutationCtx, QueryCtx} from '@convex/_generated/server'
+import type {Doc, Id} from '@convex/_generated/dataModel'
 import {paginationOptsValidator} from 'convex/server'
 import {v} from 'convex/values'
 
@@ -74,6 +74,16 @@ async function getTagIdsForEntry(ctx: MutationCtx, userId: Id<'users'>, entryId:
     .take(100)
 
   return links.map((link) => link.tagId)
+}
+
+async function getTagNamesForEntry(ctx: QueryCtx, userId: Id<'users'>, entryId: Id<'entries'>): Promise<string[]> {
+  const links = await ctx.db
+    .query('entryTags')
+    .withIndex('by_userId_and_entryId', (q) => q.eq('userId', userId).eq('entryId', entryId))
+    .take(100)
+
+  const tags = await Promise.all(links.map((link) => ctx.db.get(link.tagId)))
+  return tags.flatMap((tag) => (tag === null ? [] : [tag.name]))
 }
 
 async function ensureTag(ctx: MutationCtx, userId: Id<'users'>, rawTag: string, now: number): Promise<Id<'tags'> | null> {
@@ -408,6 +418,122 @@ export const getNextInbox = query({
         url: entry.url,
         createdAt: entry.createdAt,
       },
+    }
+  },
+})
+
+function searchTextForEntry(entry: Doc<'entries'>): string {
+  return [entry.text, entry.description, entry.url, entry.telegram.file.fileName, entry.telegram.file.mimeType, entry.telegram.context.forwardOrigin]
+    .filter((value): value is string => value !== null)
+    .join(' ')
+    .toLocaleLowerCase()
+}
+
+function entryMatchesText(entry: Doc<'entries'>, text: string | null): boolean {
+  if (text === null) return true
+  return searchTextForEntry(entry).includes(text)
+}
+
+export const search = query({
+  args: {
+    userId: v.id('users'),
+    text: v.optional(nullableString),
+    tags: v.optional(v.array(v.string())),
+    kind: v.optional(v.union(kind, v.null())),
+    limit: v.optional(v.number()),
+  },
+  returns: v.object({
+    items: v.array(
+      v.object({
+        id: v.id('entries'),
+        kind,
+        status: v.union(v.literal('inbox'), v.literal('saved')),
+        text: nullableString,
+        description: nullableString,
+        url: nullableString,
+        createdAt: v.number(),
+        tags: v.array(v.string()),
+      }),
+    ),
+    isTruncated: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const limit = Math.min(Math.max(args.limit ?? 5, 1), 20)
+    const scanLimit = Math.min(Math.max(limit * 20, 50), 500)
+    const text = args.text?.trim().toLocaleLowerCase() ?? null
+    const kindFilter = args.kind ?? null
+    const tagSlugs: string[] = []
+    const seenTags = new Set<string>()
+
+    for (const rawTag of args.tags ?? []) {
+      const tag = normalizeTagToken(rawTag)
+      if (tag === null) return {items: [], isTruncated: false}
+      if (seenTags.has(tag.slug)) continue
+      seenTags.add(tag.slug)
+      tagSlugs.push(tag.slug)
+    }
+
+    if ((text === null || text.length === 0) && kindFilter === null && tagSlugs.length === 0) {
+      return {items: [], isTruncated: false}
+    }
+
+    let candidates: Doc<'entries'>[] = []
+    if (tagSlugs.length > 0) {
+      const firstTag = await ctx.db
+        .query('tags')
+        .withIndex('by_userId_and_slug', (q) => q.eq('userId', args.userId).eq('slug', tagSlugs[0]!))
+        .unique()
+
+      if (firstTag === null) return {items: [], isTruncated: false}
+
+      const links = await ctx.db
+        .query('entryTags')
+        .withIndex('by_userId_and_tagId', (q) => q.eq('userId', args.userId).eq('tagId', firstTag._id))
+        .order('desc')
+        .take(scanLimit)
+
+      const rows = await Promise.all(links.map((link) => ctx.db.get(link.entryId)))
+      candidates = rows.filter((entry): entry is Doc<'entries'> => entry !== null).sort((left, right) => right.createdAt - left.createdAt)
+    } else if (kindFilter !== null) {
+      candidates = await ctx.db
+        .query('entries')
+        .withIndex('by_userId_and_kind', (q) => q.eq('userId', args.userId).eq('kind', kindFilter))
+        .order('desc')
+        .take(scanLimit)
+    } else {
+      candidates = await ctx.db
+        .query('entries')
+        .withIndex('by_userId_and_createdAt', (q) => q.eq('userId', args.userId))
+        .order('desc')
+        .take(scanLimit)
+    }
+
+    const items = []
+    for (const entry of candidates) {
+      if (entry.userId !== args.userId || entry.status === 'archived') continue
+      if (kindFilter !== null && entry.kind !== kindFilter) continue
+      if (!entryMatchesText(entry, text === null || text.length === 0 ? null : text)) continue
+
+      const entryTags = await getTagNamesForEntry(ctx, args.userId, entry._id)
+      if (tagSlugs.some((tag) => !entryTags.includes(tag))) continue
+
+      items.push({
+        id: entry._id,
+        kind: entry.kind,
+        status: entry.status,
+        text: entry.text,
+        description: entry.description,
+        url: entry.url,
+        createdAt: entry.createdAt,
+        tags: entryTags,
+      })
+
+      if (items.length > limit) break
+    }
+
+    return {
+      items: items.slice(0, limit),
+      isTruncated: items.length > limit,
     }
   },
 })

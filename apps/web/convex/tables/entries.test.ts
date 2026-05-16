@@ -208,6 +208,28 @@ type GetNextInboxResult =
       }
     }
 
+type SearchEntriesArgs = {
+  userId: Id<'users'>
+  text?: string | null
+  tags?: string[]
+  kind?: SaveEntryArgs['kind'] | null
+  limit?: number
+}
+
+type SearchEntriesResult = {
+  items: Array<{
+    id: Id<'entries'>
+    kind: SaveEntryArgs['kind']
+    status: 'inbox' | 'saved'
+    text: string | null
+    description: string | null
+    url: string | null
+    createdAt: number
+    tags: string[]
+  }>
+  isTruncated: boolean
+}
+
 type RegisterUserArgs = {
   telegramId: number
   chatId: number
@@ -240,6 +262,7 @@ const completeDescriptionFlowRef = makeFunctionReference<'mutation', CompleteDes
 const cancelTagFlowRef = makeFunctionReference<'mutation', CancelTagFlowArgs, CancelTagFlowResult>('tables/flows:cancelForEntry')
 const countInboxRef = makeFunctionReference<'query', CountInboxArgs, CountInboxResult>('tables/entries:countInbox')
 const getNextInboxRef = makeFunctionReference<'query', GetNextInboxArgs, GetNextInboxResult>('tables/entries:getNextInbox')
+const searchEntriesRef = makeFunctionReference<'query', SearchEntriesArgs, SearchEntriesResult>('tables/entries:search')
 const registerUserRef = makeFunctionReference<'mutation', RegisterUserArgs, RegisterUserResult>('tables/users:registerFromTelegramStart')
 const modules = {
   '../_generated/api.ts': () => import('../_generated/api'),
@@ -548,6 +571,32 @@ describe('entries data model', () => {
     expect(row?.status).toBe('archived')
     expect(typeof row?.archivedAt).toBe('number')
     expect(savedFlow?.status).toBe('cancelled')
+  })
+
+  test('searches active entries by text, tag, and kind without returning archived or foreign rows', async () => {
+    const t = convexTest(schema, modules)
+    const firstUserId = await createUser(t, 1001)
+    const secondUserId = await createUser(t, 1002)
+
+    const contract = await t.mutation(saveEntryRef, createText(firstUserId, {sourceMessageId: 101, text: 'Подписать договор с клиентом #работа', tags: ['#работа']}))
+    await t.mutation(saveEntryRef, createText(firstUserId, {sourceMessageId: 102, kind: 'photo', text: null, description: 'Фото договора на столе', descriptionSource: 'user', tags: ['#работа']}))
+    const archivedEntry = await t.mutation(saveEntryRef, createText(firstUserId, {sourceMessageId: 103, text: 'Старый договор', tags: ['#работа']}))
+    await t.mutation(saveEntryRef, createText(secondUserId, {sourceMessageId: 104, text: 'чужой договор #работа', tags: ['#работа']}))
+    await t.mutation(archiveEntryBySourceMessageRef, {userId: firstUserId, sourceChatId: 2001, sourceMessageId: 103})
+
+    const byText = await t.query(searchEntriesRef, {userId: firstUserId, text: 'договор', limit: 10})
+    const byTagAndKind = await t.query(searchEntriesRef, {userId: firstUserId, tags: ['#работа'], kind: 'photo', limit: 10})
+
+    expect(byText.items.map((item) => item.id)).toContain(contract.entryId)
+    expect(byText.items.map((item) => item.id)).not.toContain(archivedEntry.entryId)
+    expect(byText.items.every((item) => item.text !== 'чужой договор #работа')).toBe(true)
+    expect(byTagAndKind.items).toEqual([
+      expect.objectContaining({
+        kind: 'photo',
+        description: 'Фото договора на столе',
+        tags: ['работа'],
+      }),
+    ])
   })
 
   test('counts only inbox entries owned by the requested user', async () => {

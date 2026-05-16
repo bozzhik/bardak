@@ -18,6 +18,10 @@ export const botCommands: BotCommand[] = [
     description: 'Сколько во входящих',
   },
   {
+    command: 'search',
+    description: 'Найти материалы',
+  },
+  {
     command: 'tags',
     description: 'Показать теги',
   },

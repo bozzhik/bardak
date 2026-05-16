@@ -1,5 +1,5 @@
 import type {BotDataClient} from '@/bot/flow'
-import type {ArchiveEntryBySourceMessageArgs, ArchiveEntryBySourceMessageResult, CancelTagFlowArgs, CancelTagFlowResult, CompleteDescriptionFlowArgs, CompleteDescriptionFlowResult, CompleteTagFlowByIdArgs, CompleteTagFlowByIdResult, CompleteTagFlowArgs, CompleteTagFlowResult, CountInboxArgs, CountInboxResult, EnsureTagArgs, EnsureTagResult, FindTagArgs, FindTagResult, GetActiveFlowArgs, GetActiveFlowResult, ListTagsArgs, ListTagsResult, NextInboxArgs, NextInboxResult, RegisterOnStartArgs, RegisterOnStartResult, RemoveTagArgs, RemoveTagResult, RenameTagArgs, RenameTagResult, SaveEntryArgs, SaveEntryResult, TouchOnCommandResult, TouchOnTextResult, UpdateEntryFromEditArgs, UpdateEntryFromEditResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
+import type {ArchiveEntryBySourceMessageArgs, ArchiveEntryBySourceMessageResult, CancelTagFlowArgs, CancelTagFlowResult, CompleteDescriptionFlowArgs, CompleteDescriptionFlowResult, CompleteTagFlowByIdArgs, CompleteTagFlowByIdResult, CompleteTagFlowArgs, CompleteTagFlowResult, CountInboxArgs, CountInboxResult, EnsureTagArgs, EnsureTagResult, FindTagArgs, FindTagResult, GetActiveFlowArgs, GetActiveFlowResult, ListTagsArgs, ListTagsResult, NextInboxArgs, NextInboxResult, RegisterOnStartArgs, RegisterOnStartResult, RemoveTagArgs, RemoveTagResult, RenameTagArgs, RenameTagResult, SaveEntryArgs, SaveEntryResult, SearchEntriesArgs, SearchEntriesResult, TouchOnCommandResult, TouchOnTextResult, UpdateEntryFromEditArgs, UpdateEntryFromEditResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
 
 type FakeBotDataClientOptions = {
   registerResult?: RegisterOnStartResult
@@ -8,6 +8,7 @@ type FakeBotDataClientOptions = {
   listTagsResult?: ListTagsResult
   countInboxResult?: CountInboxResult
   nextInboxResult?: NextInboxResult
+  searchEntriesResult?: SearchEntriesResult
   ensureTagResult?: EnsureTagResult
   renameTagResult?: RenameTagResult
   findTagResult?: FindTagResult
@@ -30,6 +31,7 @@ export type FakeBotDataClient = BotDataClient & {
   listTagsCalls: ListTagsArgs[]
   countInboxCalls: CountInboxArgs[]
   nextInboxCalls: NextInboxArgs[]
+  searchEntriesCalls: SearchEntriesArgs[]
   ensureTagCalls: EnsureTagArgs[]
   renameTagCalls: RenameTagArgs[]
   findTagCalls: FindTagArgs[]
@@ -52,6 +54,7 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
   const listTagsCalls: ListTagsArgs[] = []
   const countInboxCalls: CountInboxArgs[] = []
   const nextInboxCalls: NextInboxArgs[] = []
+  const searchEntriesCalls: SearchEntriesArgs[] = []
   const ensureTagCalls: EnsureTagArgs[] = []
   const renameTagCalls: RenameTagArgs[] = []
   const findTagCalls: FindTagArgs[] = []
@@ -84,6 +87,10 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
   }
   const nextInboxResult = options.nextInboxResult ?? {
     status: 'empty',
+  }
+  const searchEntriesResult = options.searchEntriesResult ?? {
+    items: [],
+    isTruncated: false,
   }
   const ensureTagResult = options.ensureTagResult ?? {
     status: 'created',
@@ -146,6 +153,7 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
     listTagsCalls,
     countInboxCalls,
     nextInboxCalls,
+    searchEntriesCalls,
     ensureTagCalls,
     renameTagCalls,
     findTagCalls,
@@ -182,6 +190,10 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
     async getNextInbox(args) {
       nextInboxCalls.push(args)
       return nextInboxResult
+    },
+    async searchEntries(args) {
+      searchEntriesCalls.push(args)
+      return searchEntriesResult
     },
     async ensureTag(args) {
       ensureTagCalls.push(args)

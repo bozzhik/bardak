@@ -91,6 +91,30 @@ export type NextInboxResult =
 
 export const getNextInboxRef = makeFunctionReference<'query', NextInboxArgs, NextInboxResult>('tables/entries:getNextInbox')
 
+export type SearchEntriesArgs = {
+  userId: string
+  text?: string | null
+  tags?: string[]
+  kind?: 'text' | 'link' | 'photo' | 'voice' | 'audio' | 'document' | 'video' | 'sticker' | 'unsupported' | null
+  limit?: number
+}
+
+export type SearchEntriesResult = {
+  items: Array<{
+    id: string
+    kind: 'text' | 'link' | 'photo' | 'voice' | 'audio' | 'document' | 'video' | 'sticker' | 'unsupported'
+    status: 'inbox' | 'saved'
+    text: string | null
+    description: string | null
+    url: string | null
+    createdAt: number
+    tags: string[]
+  }>
+  isTruncated: boolean
+}
+
+export const searchEntriesRef = makeFunctionReference<'query', SearchEntriesArgs, SearchEntriesResult>('tables/entries:search')
+
 export type EnsureTagArgs = {
   userId: string
   tag: string

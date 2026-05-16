@@ -2,9 +2,9 @@ import {describe, expect, test} from 'bun:test'
 
 import type {UserIdentityPayload} from '@/convex/functions'
 
-import {BOTS_NOT_SUPPORTED_MESSAGE, INVALID_CONTEXT_MESSAGE, NOT_REGISTERED_MESSAGE, START_MESSAGE} from '@/bot/messages'
+import {BOTS_NOT_SUPPORTED_MESSAGE, INVALID_CONTEXT_MESSAGE, NOT_REGISTERED_MESSAGE, SEARCH_EMPTY_MESSAGE, SEARCH_USAGE_MESSAGE, START_MESSAGE} from '@/bot/messages'
 import {createFakeBotDataClient} from '@/convex/fake-client'
-import {handleCallback, handleDelete, handleEditedMessage, handleInbox, handleInboxCount, handleMessage, handleStart, handleTagDelete, handleTagNew, handleTagRename, handleTags, handleText, inboxSkipCallback, readStartPayload, tagDeleteCancelCallback, tagDeleteConfirmCallback, tagPickCallback} from '@/bot/flow'
+import {handleCallback, handleDelete, handleEditedMessage, handleInbox, handleInboxCount, handleMessage, handleSearch, handleStart, handleTagDelete, handleTagNew, handleTagRename, handleTags, handleText, inboxSkipCallback, readStartPayload, tagDeleteCancelCallback, tagDeleteConfirmCallback, tagPickCallback} from '@/bot/flow'
 import type {NormalizedEntryMessage} from '@/telegram/normalize'
 
 const USER: UserIdentityPayload = {
@@ -414,6 +414,51 @@ describe('bot flow', () => {
 
     expect(result).toEqual({type: 'reply', text: 'Ответь командой /delete на материал, который нужно убрать.'})
     expect(client.archiveEntryBySourceMessageCalls).toHaveLength(0)
+  })
+
+  test('/search parses text, tag, and type filters and formats bounded results', async () => {
+    const client = createFakeBotDataClient({
+      searchEntriesResult: {
+        items: [
+          {
+            id: 'entries:contract',
+            kind: 'document',
+            status: 'saved',
+            text: null,
+            description: 'Договор с клиентом',
+            url: null,
+            createdAt: 123,
+            tags: ['работа'],
+          },
+        ],
+        isTruncated: false,
+      },
+    })
+
+    const result = await handleSearch({identity: USER, query: 'договор #работа type:document'}, client)
+
+    expect(result).toEqual({type: 'reply', text: ['Нашёл:', '', '1. document — Договор с клиентом #работа'].join('\n')})
+    expect(client.searchEntriesCalls).toEqual([
+      {
+        userId: 'users:test',
+        text: 'договор',
+        tags: ['#работа'],
+        kind: 'document',
+        limit: 5,
+      },
+    ])
+  })
+
+  test('/search explains empty queries and empty results', async () => {
+    const client = createFakeBotDataClient({
+      searchEntriesResult: {
+        items: [],
+        isTruncated: false,
+      },
+    })
+
+    expect(await handleSearch({identity: USER, query: ''}, client)).toEqual({type: 'reply', text: SEARCH_USAGE_MESSAGE})
+    expect(await handleSearch({identity: USER, query: 'ничего'}, client)).toEqual({type: 'reply', text: SEARCH_EMPTY_MESSAGE})
   })
 
   test('active tag flow consumes the next hashtag message instead of saving a new entry', async () => {

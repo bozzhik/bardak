@@ -1,6 +1,6 @@
 export const START_MESSAGE = ['Привет! Я на связи и готов к работе', '', 'Если забудешь, что тут есть — загляни в /help'].join('\n')
 
-export const HELP_MESSAGE = ['Коротко, что умею:', '', '/start — запуск бота', '/help — показать справку', '/inbox — разобрать входящие', '/inbox_count — сколько во входящих', '/tags — список тегов', '/tag_new #tag — создать тег', '/tag_rename #old #new — переименовать тег', '/tag_delete #tag — удалить тег', '/delete — убрать материал через reply'].join('\n')
+export const HELP_MESSAGE = ['Коротко, что умею:', '', '/start — запуск бота', '/help — показать справку', '/inbox — разобрать входящие', '/inbox_count — сколько во входящих', '/search договор #tag type:document — поиск', '/tags — список тегов', '/tag_new #tag — создать тег', '/tag_rename #old #new — переименовать тег', '/tag_delete #tag — удалить тег', '/delete — убрать материал через reply'].join('\n')
 
 export const NOT_REGISTERED_MESSAGE = 'Сначала нужно запустить бота с помощью /start'
 export const INVALID_CONTEXT_MESSAGE = 'Не вышло разобраться, кто ты или какой чат. Попробуй ещё раз или напиши разарботчику – @bozzhik'
@@ -17,6 +17,9 @@ export const EDITED_ENTRY_NOT_FOUND_MESSAGE = 'Не нашёл сохранён�
 export const DELETE_REPLY_USAGE_MESSAGE = 'Ответь командой /delete на материал, который нужно убрать.'
 export const ENTRY_ARCHIVED_MESSAGE = 'Убрал материал из активных.'
 export const ENTRY_NOT_FOUND_MESSAGE = 'Не нашёл сохранённый материал.'
+export const SEARCH_USAGE_MESSAGE = 'Напиши запрос: /search текст, /search #tag или /search type:photo.'
+export const SEARCH_EMPTY_MESSAGE = 'Ничего не нашёл.'
+export const SEARCH_INVALID_KIND_MESSAGE = 'Не знаю такой тип. Используй text, link, photo, voice, audio, document, video, sticker или unsupported.'
 export const TAG_FORMAT_MESSAGE = 'Напиши тег в формате #example.'
 export const TAGS_EMPTY_MESSAGE = 'Тегов пока нет. Сохрани материал без тега, затем напиши #example.'
 export const TAG_NEW_USAGE_MESSAGE = 'Напиши тег в формате /tag_new #example.'
@@ -71,4 +74,25 @@ export function inboxCountMessage(count: number, isTruncated: boolean): string {
 
 export function inboxItemMessage(preview: string): string {
   return ['Входящие:', '', preview, '', 'Выбери тег, напиши новый #tag или пропусти.'].join('\n')
+}
+
+type SearchEntryForMessage = {
+  kind: string
+  text: string | null
+  description: string | null
+  url: string | null
+  tags: string[]
+}
+
+function searchEntryPreview(entry: SearchEntryForMessage): string {
+  return entry.text ?? entry.description ?? entry.url ?? 'Без описания'
+}
+
+export function searchResultsMessage(entries: SearchEntryForMessage[], isTruncated: boolean): string {
+  const rows = entries.map((entry, index) => {
+    const tags = entry.tags.length === 0 ? '' : ` ${entry.tags.map((tag) => `#${tag}`).join(' ')}`
+    return `${index + 1}. ${entry.kind} — ${searchEntryPreview(entry)}${tags}`
+  })
+
+  return ['Нашёл:', '', ...rows, ...(isTruncated ? ['', 'Показал первые результаты. Уточни запрос, если нужно.'] : [])].join('\n')
 }
