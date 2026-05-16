@@ -125,7 +125,7 @@ export default defineSchema({
   flows: defineTable({
     userId: v.id('users'),
     chatId: v.number(),
-    kind: v.literal('tag'),
+    kind: v.union(v.literal('tag'), v.literal('description')),
     status: v.union(v.literal('active'), v.literal('done'), v.literal('cancelled')),
     entryId: v.union(v.id('entries'), v.null()),
     step: v.string(),

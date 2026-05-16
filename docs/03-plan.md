@@ -47,7 +47,6 @@
 
 Пока не сделано:
 
-- обработка разных Telegram message types;
 - поиск;
 - страницы и публичный шеринг;
 - web-кабинет;
@@ -311,30 +310,30 @@
 
 **Работы:**
 
-- [ ] Нормализовать ссылки в тексте.
-- [ ] Нормализовать forwarded messages.
-- [ ] Нормализовать reply-to-message context.
-- [ ] Добавить фото с caption или ручным описанием.
-- [ ] Добавить voice/audio с ручным описанием.
-- [ ] Добавить document/PDF/file с caption или ручным описанием.
-- [ ] Добавить сохранение unsupported message как inbox entry.
-- [ ] Зафиксировать ignore-policy для `edited_message` и удалений.
+- [x] Нормализовать ссылки в тексте.
+- [x] Нормализовать forwarded messages.
+- [x] Нормализовать reply-to-message context.
+- [x] Добавить фото с caption или ручным описанием.
+- [x] Добавить voice/audio с ручным описанием.
+- [x] Добавить document/PDF/file с caption или ручным описанием.
+- [x] Добавить сохранение unsupported message как inbox entry.
+- [x] Зафиксировать ignore-policy для `edited_message` и удалений.
 
 **Тесты:**
 
-- фото без caption создаёт `flow: 'description'`;
-- фото с caption создаёт entry с description;
-- voice без transcript создаёт ручное описание;
-- forwarded text сохраняет metadata forward source, если Telegram отдаёт его;
-- reply к сохранённому сообщению создаёт связь или сохраняет reply metadata;
-- unsupported type сохраняется как inbox entry и не ломает handler;
-- `edited_message` не меняет уже сохранённый entry.
+- [x] фото без caption создаёт `flow: 'description'`;
+- [x] фото с caption создаёт entry с description;
+- [x] voice без transcript создаёт ручное описание;
+- [x] forwarded text сохраняет metadata forward source, если Telegram отдаёт его;
+- [x] reply к сохранённому сообщению создаёт связь или сохраняет reply metadata;
+- [x] unsupported type сохраняется как inbox entry и не ломает handler;
+- [x] `edited_message` не меняет уже сохранённый entry.
 
 **DoD:**
 
-- [ ] Пользователь может сохранить не только текст, но и материалы с ручным описанием.
-- [ ] Типы сообщений идут через общий entry lifecycle.
-- [ ] Нет отдельной логики, которую придётся выбрасывать при добавлении AI.
+- [x] Пользователь может сохранить не только текст, но и материалы с ручным описанием.
+- [x] Типы сообщений идут через общий entry lifecycle.
+- [x] Нет отдельной логики, которую придётся выбрасывать при добавлении AI.
 
 ---
 

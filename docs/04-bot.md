@@ -165,7 +165,7 @@ Forwarded/reply не являются отдельными `kind`: они хра
 | `description` | media/file сохранён, но нужен searchable description |
 | `search`      | пользователь начал поиск без query                   |
 
-Текущая schema уже поддерживает `tag`. Остальные kinds добавляются отдельными slices, когда появится соответствующий flow.
+Текущая schema поддерживает `tag` и `description`. Остальные kinds добавляются отдельными slices, когда появится соответствующий flow.
 
 ---
 
@@ -357,6 +357,23 @@ Forwarded message обрабатывается по типу оригиналь�
 Ответ: `Пока не умею разобрать этот тип. Опиши его несколькими словами, и я сохраню описание.`
 
 Решение: понятный inbox material лучше, чем потеря сообщения. Нормализатор конкретного типа можно добавить позже.
+
+---
+
+## Текущий слой message types
+
+Реализованный v1 ingestion:
+
+- text сохраняется как `text`, а text с первым URL — как `link`;
+- photo, voice, audio, document, video и sticker сохраняют Telegram file metadata;
+- caption используется как `description` и проходит через тот же inline-tag parsing;
+- media/file без caption создаёт активный `flow: 'description'`;
+- следующий text в `description` flow становится `descriptionSource: 'user'`, после чего flow переключается на `tag`;
+- новое media-сообщение не заменяет активный flow: бот просит сначала закончить предыдущий материал;
+- forwarded и reply metadata сохраняются в `telegram.context`;
+- unsupported message сохраняется как `kind: 'unsupported'` и просит ручное описание.
+
+`edited_message` и удаление Telegram-сообщений в v1 не синхронизируются: сохранённый entry остаётся snapshot на момент capture.
 
 ---
 

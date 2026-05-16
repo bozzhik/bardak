@@ -1,9 +1,9 @@
 import {extractTagTokens, normalizeTagToken} from '@repo/shared'
 
-import type {CancelTagFlowArgs, CancelTagFlowResult, CompleteTagFlowByIdArgs, CompleteTagFlowByIdResult, CompleteTagFlowArgs, CompleteTagFlowResult, CountInboxArgs, CountInboxResult, EnsureTagArgs, EnsureTagResult, FindTagArgs, FindTagResult, ListTagsArgs, ListTagsResult, NextInboxArgs, NextInboxResult, RegisterOnStartArgs, RegisterOnStartResult, RemoveTagArgs, RemoveTagResult, RenameTagArgs, RenameTagResult, SaveEntryArgs, SaveEntryResult, TouchOnCommandResult, TouchOnTextResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
+import type {CancelTagFlowArgs, CancelTagFlowResult, CompleteDescriptionFlowArgs, CompleteDescriptionFlowResult, CompleteTagFlowByIdArgs, CompleteTagFlowByIdResult, CompleteTagFlowArgs, CompleteTagFlowResult, CountInboxArgs, CountInboxResult, EnsureTagArgs, EnsureTagResult, FindTagArgs, FindTagResult, GetActiveFlowArgs, GetActiveFlowResult, ListTagsArgs, ListTagsResult, NextInboxArgs, NextInboxResult, RegisterOnStartArgs, RegisterOnStartResult, RemoveTagArgs, RemoveTagResult, RenameTagArgs, RenameTagResult, SaveEntryArgs, SaveEntryResult, TouchOnCommandResult, TouchOnTextResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
 
-import {BOTS_NOT_SUPPORTED_MESSAGE, INBOX_EMPTY_MESSAGE, INBOX_SKIPPED_MESSAGE, INVALID_CONTEXT_MESSAGE, NO_ACTIVE_FLOW_MESSAGE, NOT_REGISTERED_MESSAGE, SAVED_TO_INBOX_MESSAGE, START_MESSAGE, TAGS_EMPTY_MESSAGE, TAG_DELETE_CANCELLED_MESSAGE, TAG_DELETE_USAGE_MESSAGE, TAG_FORMAT_MESSAGE, TAG_NEW_USAGE_MESSAGE, TAG_RENAME_USAGE_MESSAGE, UNKNOWN_ACTION_MESSAGE, inboxCountMessage, inboxItemMessage, savedWithTagsMessage, tagCreatedMessage, tagDeleteConfirmMessage, tagDeletedMessage, tagExistsMessage, tagNotFoundMessage, tagRenamedMessage, tagsListMessage} from '@/bot/messages'
-import {normalizeTextMessage} from '@/telegram/normalize'
+import {ACTIVE_FLOW_MESSAGE, BOTS_NOT_SUPPORTED_MESSAGE, DESCRIPTION_SAVED_MESSAGE, INBOX_EMPTY_MESSAGE, INBOX_SKIPPED_MESSAGE, INVALID_CONTEXT_MESSAGE, NEED_DESCRIPTION_MESSAGE, NO_ACTIVE_FLOW_MESSAGE, NOT_REGISTERED_MESSAGE, SAVED_TO_INBOX_MESSAGE, START_MESSAGE, TAGS_EMPTY_MESSAGE, TAG_DELETE_CANCELLED_MESSAGE, TAG_DELETE_USAGE_MESSAGE, TAG_FORMAT_MESSAGE, TAG_NEW_USAGE_MESSAGE, TAG_RENAME_USAGE_MESSAGE, UNKNOWN_ACTION_MESSAGE, UNSUPPORTED_DESCRIPTION_MESSAGE, inboxCountMessage, inboxItemMessage, savedWithTagsMessage, tagCreatedMessage, tagDeleteConfirmMessage, tagDeletedMessage, tagExistsMessage, tagNotFoundMessage, tagRenamedMessage, tagsListMessage} from '@/bot/messages'
+import {normalizeTelegramMessage, type NormalizedEntryMessage} from '@/telegram/normalize'
 
 export type BotDataClient = {
   registerOnStart(args: RegisterOnStartArgs): Promise<RegisterOnStartResult>
@@ -18,9 +18,11 @@ export type BotDataClient = {
   removeTag(args: RemoveTagArgs): Promise<RemoveTagResult>
   completeTagFlow(args: CompleteTagFlowArgs): Promise<CompleteTagFlowResult>
   completeTagFlowById(args: CompleteTagFlowByIdArgs): Promise<CompleteTagFlowByIdResult>
+  completeDescriptionFlow(args: CompleteDescriptionFlowArgs): Promise<CompleteDescriptionFlowResult>
   cancelTagFlow(args: CancelTagFlowArgs): Promise<CancelTagFlowResult>
   saveEntry(args: SaveEntryArgs): Promise<SaveEntryResult>
   upsertFlow(args: UpsertFlowArgs): Promise<UpsertFlowResult>
+  getActiveFlow(args: GetActiveFlowArgs): Promise<GetActiveFlowResult>
 }
 
 export type ReplyButton = {
@@ -50,6 +52,11 @@ export type TextFlowInput = {
   identity: UserIdentityPayload | null
   messageId: number
   text: string
+}
+
+export type MessageFlowInput = {
+  identity: UserIdentityPayload | null
+  message: NormalizedEntryMessage
 }
 
 export type TagsFlowInput = {
@@ -131,6 +138,19 @@ function buildInboxPreview(entry: Extract<NextInboxResult, {status: 'found'}>['e
 
 function inboxButtons(tags: ListTagsResult, entryId: string): ReplyButton[][] {
   return [...tagButtons(tags), [{text: 'Пропустить', data: inboxSkipCallback(entryId)}]]
+}
+
+function entrySearchText(message: NormalizedEntryMessage): string {
+  return message.text ?? message.description ?? ''
+}
+
+function needsDescription(message: NormalizedEntryMessage): boolean {
+  return message.description === null && message.descriptionSource === 'none' && message.text === null
+}
+
+function hasTelegramMetadata(message: NormalizedEntryMessage): boolean {
+  const {telegram} = message
+  return (message.kind !== 'text' && message.kind !== 'link') || telegram.context.forwardOrigin !== null || telegram.context.forwardDate !== null || telegram.context.replyToMessageId !== null || telegram.file.fileId !== null
 }
 
 export async function handleStart(input: StartFlowInput, client: BotDataClient): Promise<ReplyResult> {
@@ -423,9 +443,9 @@ export async function handleCallback(input: CallbackFlowInput, client: BotDataCl
 }
 
 export async function handleText(input: TextFlowInput, client: BotDataClient): Promise<BotFlowResult> {
-  const message = normalizeTextMessage(input.text)
-  if (message.kind === 'command') {
-    return {type: 'ignored_command', command: message.command}
+  const normalized = normalizeTelegramMessage({message_id: input.messageId, text: input.text})
+  if (normalized.kind === 'command') {
+    return {type: 'ignored_command', command: normalized.command}
   }
 
   const {identity} = input
@@ -442,9 +462,68 @@ export async function handleText(input: TextFlowInput, client: BotDataClient): P
     return {type: 'reply', text: NOT_REGISTERED_MESSAGE}
   }
 
-  const tags = extractTagTokens(message.text)
-  const flow = await client.completeTagFlow({
+  const described = await client.completeDescriptionFlow({
     userId: result.userId,
+    chatId: identity.chatId,
+    description: normalized.entry.text ?? '',
+  })
+
+  if (described.status === 'described') {
+    const existingTags = await client.listTags({
+      userId: result.userId,
+      limit: 8,
+    })
+
+    return {
+      type: 'reply',
+      text: DESCRIPTION_SAVED_MESSAGE,
+      ...(existingTags.length > 0 ? {buttons: tagButtons(existingTags)} : {}),
+    }
+  }
+
+  if (described.status === 'invalid_description') {
+    return {type: 'reply', text: NEED_DESCRIPTION_MESSAGE}
+  }
+
+  return await saveNormalizedEntry({identity, message: normalized.entry}, client, result.userId)
+}
+
+export async function handleMessage(input: MessageFlowInput, client: BotDataClient): Promise<ReplyResult> {
+  const {identity} = input
+  if (identity === null) {
+    return {type: 'reply', text: INVALID_CONTEXT_MESSAGE}
+  }
+
+  if (identity.isBotAccount) {
+    return {type: 'reply', text: BOTS_NOT_SUPPORTED_MESSAGE}
+  }
+
+  const result = await client.touchOnText(identity)
+  if (result.status === 'not_registered') {
+    return {type: 'reply', text: NOT_REGISTERED_MESSAGE}
+  }
+
+  const active = await client.getActiveFlow({
+    userId: result.userId,
+    chatId: identity.chatId,
+  })
+  if (active.status === 'active') {
+    return {type: 'reply', text: ACTIVE_FLOW_MESSAGE}
+  }
+
+  return await saveNormalizedEntry(input, client, result.userId)
+}
+
+async function saveNormalizedEntry(input: MessageFlowInput, client: BotDataClient, userId: string): Promise<ReplyResult> {
+  const {identity, message} = input
+  if (identity === null) {
+    return {type: 'reply', text: INVALID_CONTEXT_MESSAGE}
+  }
+
+  const searchable = entrySearchText(message)
+  const tags = extractTagTokens(searchable)
+  const flow = await client.completeTagFlow({
+    userId,
     chatId: identity.chatId,
     tags,
   })
@@ -458,27 +537,32 @@ export async function handleText(input: TextFlowInput, client: BotDataClient): P
   }
 
   const entry = await client.saveEntry({
-    userId: result.userId,
+    userId,
     sourceChatId: identity.chatId,
-    sourceMessageId: input.messageId,
-    kind: 'text',
+    sourceMessageId: message.messageId,
+    kind: message.kind,
     text: message.text,
-    description: null,
-    descriptionSource: 'text',
-    url: null,
+    description: message.description,
+    descriptionSource: message.descriptionSource,
+    url: message.url,
     tags,
+    ...(hasTelegramMetadata(message) ? {telegram: message.telegram} : {}),
   })
 
   if (entry.entryStatus === 'inbox') {
     await client.upsertFlow({
-      userId: result.userId,
+      userId,
       chatId: identity.chatId,
-      kind: 'tag',
+      kind: needsDescription(message) ? 'description' : 'tag',
       entryId: entry.entryId,
     })
 
+    if (needsDescription(message)) {
+      return {type: 'reply', text: message.kind === 'unsupported' ? UNSUPPORTED_DESCRIPTION_MESSAGE : NEED_DESCRIPTION_MESSAGE}
+    }
+
     const existingTags = await client.listTags({
-      userId: result.userId,
+      userId,
       limit: 8,
     })
 

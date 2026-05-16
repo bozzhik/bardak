@@ -140,6 +140,28 @@ export type SaveEntryArgs = {
   descriptionSource?: 'none' | 'text' | 'caption' | 'user' | 'ai'
   url: string | null
   tags: string[]
+  telegram?: {
+    type: string
+    context: {
+      forwardOrigin: string | null
+      forwardDate: number | null
+      replyToMessageId: number | null
+    }
+    file: {
+      fileId: string | null
+      fileUniqueId: string | null
+      fileName: string | null
+      mimeType: string | null
+      fileSize: number | null
+      duration: number | null
+      width: number | null
+      height: number | null
+      emoji: string | null
+      setName: string | null
+      isAnimated: boolean | null
+      isVideo: boolean | null
+    }
+  }
 }
 
 export type SaveEntryResult = {
@@ -154,7 +176,7 @@ export const saveEntryRef = makeFunctionReference<'mutation', SaveEntryArgs, Sav
 export type UpsertFlowArgs = {
   userId: string
   chatId: number
-  kind: 'tag'
+  kind: 'tag' | 'description'
   entryId: string
 }
 
@@ -164,6 +186,24 @@ export type UpsertFlowResult = {
 }
 
 export const upsertFlowRef = makeFunctionReference<'mutation', UpsertFlowArgs, UpsertFlowResult>('tables/flows:upsertActive')
+
+export type GetActiveFlowArgs = {
+  userId: string
+  chatId: number
+}
+
+export type GetActiveFlowResult =
+  | {
+      status: 'none'
+    }
+  | {
+      status: 'active'
+      flowId: string
+      kind: 'tag' | 'description'
+      entryId: string | null
+    }
+
+export const getActiveFlowRef = makeFunctionReference<'query', GetActiveFlowArgs, GetActiveFlowResult>('tables/flows:getActive')
 
 export type CompleteTagFlowArgs = {
   userId: string
@@ -184,6 +224,30 @@ export type CompleteTagFlowByIdArgs = {
 export type CompleteTagFlowByIdResult = {status: 'no_active'} | {status: 'missing_tag'} | {status: 'tagged'; flowId: string; entryId: string; tagId: string; tagName: string}
 
 export const completeTagFlowByIdRef = makeFunctionReference<'mutation', CompleteTagFlowByIdArgs, CompleteTagFlowByIdResult>('tables/flows:completeTagById')
+
+export type CompleteDescriptionFlowArgs = {
+  userId: string
+  chatId: number
+  description: string
+}
+
+export type CompleteDescriptionFlowResult =
+  | {
+      status: 'no_active'
+    }
+  | {
+      status: 'invalid_description'
+      flowId: string
+      entryId: string
+    }
+  | {
+      status: 'described'
+      flowId: string
+      entryId: string
+      description: string
+    }
+
+export const completeDescriptionFlowRef = makeFunctionReference<'mutation', CompleteDescriptionFlowArgs, CompleteDescriptionFlowResult>('tables/flows:completeDescription')
 
 export type CancelTagFlowArgs = {
   userId: string

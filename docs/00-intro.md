@@ -63,3 +63,7 @@ Bardak — Telegram-first продукт для сохранения личны�
 ### 014 — YooMoney payment design
 
 Зафиксировали первый платёжный контракт: что вводить при регистрации YooMoney, какие публичные URL зарезервировать, как бот будет выдавать ссылку на оплату и как webhook по `label` будет превращаться в provider-independent `entitlement`.
+
+### 015 — Message types
+
+Добавили приём разных Telegram-сообщений: link, photo, voice, audio, document, video, sticker и unsupported сохраняются как entries, metadata остаётся в `telegram`, а материалы без текста запускают ручной `description` flow.

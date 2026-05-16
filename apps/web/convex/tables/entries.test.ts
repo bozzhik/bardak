@@ -49,7 +49,7 @@ type SaveEntryResult = {
 type UpsertFlowArgs = {
   userId: Id<'users'>
   chatId: number
-  kind: 'tag'
+  kind: 'tag' | 'description'
   entryId: Id<'entries'>
 }
 
@@ -57,6 +57,22 @@ type UpsertFlowResult = {
   status: 'created' | 'replaced'
   flowId: Id<'flows'>
 }
+
+type GetActiveFlowArgs = {
+  userId: Id<'users'>
+  chatId: number
+}
+
+type GetActiveFlowResult =
+  | {
+      status: 'none'
+    }
+  | {
+      status: 'active'
+      flowId: Id<'flows'>
+      kind: 'tag' | 'description'
+      entryId: Id<'entries'> | null
+    }
 
 type CompleteTagFlowArgs = {
   userId: Id<'users'>
@@ -114,6 +130,28 @@ type CancelTagFlowResult =
       entryId: Id<'entries'>
     }
 
+type CompleteDescriptionFlowArgs = {
+  userId: Id<'users'>
+  chatId: number
+  description: string
+}
+
+type CompleteDescriptionFlowResult =
+  | {
+      status: 'no_active'
+    }
+  | {
+      status: 'invalid_description'
+      flowId: Id<'flows'>
+      entryId: Id<'entries'>
+    }
+  | {
+      status: 'described'
+      flowId: Id<'flows'>
+      entryId: Id<'entries'>
+      description: string
+    }
+
 type CountInboxArgs = {
   userId: Id<'users'>
   limit?: number
@@ -167,8 +205,10 @@ type RegisterUserResult = {
 
 const saveEntryRef = makeFunctionReference<'mutation', SaveEntryArgs, SaveEntryResult>('tables/entries:save')
 const upsertFlowRef = makeFunctionReference<'mutation', UpsertFlowArgs, UpsertFlowResult>('tables/flows:upsertActive')
+const getActiveFlowRef = makeFunctionReference<'query', GetActiveFlowArgs, GetActiveFlowResult>('tables/flows:getActive')
 const completeTagFlowRef = makeFunctionReference<'mutation', CompleteTagFlowArgs, CompleteTagFlowResult>('tables/flows:completeTag')
 const completeTagFlowByIdRef = makeFunctionReference<'mutation', CompleteTagFlowByIdArgs, CompleteTagFlowByIdResult>('tables/flows:completeTagById')
+const completeDescriptionFlowRef = makeFunctionReference<'mutation', CompleteDescriptionFlowArgs, CompleteDescriptionFlowResult>('tables/flows:completeDescription')
 const cancelTagFlowRef = makeFunctionReference<'mutation', CancelTagFlowArgs, CancelTagFlowResult>('tables/flows:cancelForEntry')
 const countInboxRef = makeFunctionReference<'query', CountInboxArgs, CountInboxResult>('tables/entries:countInbox')
 const getNextInboxRef = makeFunctionReference<'query', GetNextInboxArgs, GetNextInboxResult>('tables/entries:getNextInbox')
@@ -354,6 +394,24 @@ describe('entries data model', () => {
     expect(savedFlow?.status).toBe('active')
   })
 
+  test('returns the active flow for a user chat without scanning other chats', async () => {
+    const t = convexTest(schema, modules)
+    const userId = await createUser(t)
+    const entry = await t.mutation(saveEntryRef, createText(userId, {sourceMessageId: 31}))
+    const flow = await t.mutation(upsertFlowRef, {userId, chatId: 2001, kind: 'description', entryId: entry.entryId})
+
+    const active = await t.query(getActiveFlowRef, {userId, chatId: 2001})
+    const missing = await t.query(getActiveFlowRef, {userId, chatId: 2002})
+
+    expect(active).toEqual({
+      status: 'active',
+      flowId: flow.flowId,
+      kind: 'description',
+      entryId: entry.entryId,
+    })
+    expect(missing).toEqual({status: 'none'})
+  })
+
   test('completes active tag flow from a tag callback', async () => {
     const t = convexTest(schema, modules)
     const userId = await createUser(t)
@@ -508,5 +566,54 @@ describe('entries data model', () => {
     })
     expect(savedEntry?.status).toBe('inbox')
     expect(savedFlow?.status).toBe('cancelled')
+  })
+
+  test('completing a description flow stores user description and switches to tag flow', async () => {
+    const t = convexTest(schema, modules)
+    const userId = await createUser(t)
+    const entry = await t.mutation(
+      saveEntryRef,
+      createText(userId, {
+        sourceMessageId: 88,
+        kind: 'photo',
+        text: null,
+        description: null,
+        descriptionSource: 'none',
+        telegram: createTelegram({
+          type: 'message:photo',
+          file: {
+            fileId: 'photo-file',
+            fileUniqueId: 'photo-unique',
+            fileName: null,
+            mimeType: null,
+            fileSize: 1000,
+            duration: null,
+            width: 1280,
+            height: 720,
+            emoji: null,
+            setName: null,
+            isAnimated: null,
+            isVideo: null,
+          },
+        }),
+      }),
+    )
+    const flow = await t.mutation(upsertFlowRef, {userId, chatId: 2001, kind: 'description', entryId: entry.entryId})
+
+    const result = await t.mutation(completeDescriptionFlowRef, {userId, chatId: 2001, description: 'photo of monitor adapter'})
+    const savedEntry = await t.run((ctx) => ctx.db.get(entry.entryId))
+    const savedFlow = await t.run((ctx) => ctx.db.get(flow.flowId))
+
+    expect(result).toEqual({
+      status: 'described',
+      flowId: flow.flowId,
+      entryId: entry.entryId,
+      description: 'photo of monitor adapter',
+    })
+    expect(savedEntry?.description).toBe('photo of monitor adapter')
+    expect(savedEntry?.descriptionSource).toBe('user')
+    expect(savedEntry?.status).toBe('inbox')
+    expect(savedFlow?.kind).toBe('tag')
+    expect(savedFlow?.status).toBe('active')
   })
 })

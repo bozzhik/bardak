@@ -5,8 +5,9 @@ import {BOTS_NOT_SUPPORTED_MESSAGE, HELP_MESSAGE, INBOX_EMPTY_MESSAGE, INTERNAL_
 
 import {env} from '@/config/env'
 import {getUserIdentity} from '@/bot/context'
-import {handleCallback, handleInbox, handleInboxCount, handleStart, handleTagDelete, handleTagNew, handleTagRename, handleTags, handleText, readStartPayload, type ReplyButton, type ReplyResult} from '@/bot/flow'
-import {cancelTagFlow, completeTagFlow, completeTagFlowById, countInbox, ensureTag, findTag, getNextInbox, incrementErrorCounter, listTags, recordBotEvent, registerOnStart, removeTag, renameTag, saveEntry, touchOnCommand, touchOnText, upsertFlow} from '@/convex/client'
+import {handleCallback, handleInbox, handleInboxCount, handleMessage, handleStart, handleTagDelete, handleTagNew, handleTagRename, handleTags, handleText, readStartPayload, type ReplyButton, type ReplyResult} from '@/bot/flow'
+import {cancelTagFlow, completeDescriptionFlow, completeTagFlow, completeTagFlowById, countInbox, ensureTag, findTag, getActiveFlow, getNextInbox, incrementErrorCounter, listTags, recordBotEvent, registerOnStart, removeTag, renameTag, saveEntry, touchOnCommand, touchOnText, upsertFlow} from '@/convex/client'
+import {normalizeTelegramMessage, type EntryKind, type TelegramMessageLike} from '@/telegram/normalize'
 
 const botDataClient = {
   registerOnStart,
@@ -21,9 +22,11 @@ const botDataClient = {
   removeTag,
   completeTagFlow,
   completeTagFlowById,
+  completeDescriptionFlow,
   cancelTagFlow,
   saveEntry,
   upsertFlow,
+  getActiveFlow,
 }
 
 function withRuntimeLabel(text: string): string {
@@ -99,6 +102,54 @@ function logHandledCommand(command: string, identity: UserIdentityPayload): void
 
 function logHandledText(identity: UserIdentityPayload, text: string): void {
   console.log(`${env.logPrefix} message:text telegramId=${identity.telegramId} chatId=${identity.chatId} chatKind=${identity.chatKind} length=${text.length}`)
+}
+
+function logHandledMessage(identity: UserIdentityPayload, kind: EntryKind): void {
+  console.log(`${env.logPrefix} message:${kind} telegramId=${identity.telegramId} chatId=${identity.chatId} chatKind=${identity.chatKind}`)
+}
+
+async function handleCapturableMessage(ctx: Context, message: TelegramMessageLike): Promise<void> {
+  const identity = getUserIdentity(ctx)
+  const normalized = normalizeTelegramMessage(message)
+
+  if (normalized.kind === 'command') {
+    if (identity !== null) {
+      logHandledCommand(normalized.command, identity)
+    } else {
+      console.log(`${env.logPrefix} command=${normalized.command} handled without identity`)
+    }
+    await safelyRecordBotEvent({
+      ...getEventActor(identity),
+      kind: 'command',
+      action: 'ignored_text_command',
+      status: 'ignored',
+      command: normalized.command,
+      context: getEventContext(ctx, {textLength: message.text?.length ?? null}),
+    })
+    return
+  }
+
+  const result = await handleMessage({identity, message: normalized.entry}, botDataClient)
+  if (identity !== null && !identity.isBotAccount) {
+    if (normalized.entry.kind === 'text' && normalized.entry.text !== null) {
+      logHandledText(identity, normalized.entry.text)
+    } else {
+      logHandledMessage(identity, normalized.entry.kind)
+    }
+  }
+
+  await safelyRecordBotEvent({
+    ...getEventActor(identity),
+    kind: 'message',
+    action: normalized.entry.kind,
+    status: result.text === INVALID_CONTEXT_MESSAGE || result.text === BOTS_NOT_SUPPORTED_MESSAGE || result.text === NOT_REGISTERED_MESSAGE ? 'rejected' : 'ok',
+    messageKind: normalized.entry.kind,
+    context: getEventContext(ctx, {
+      textLength: normalized.entry.text?.length ?? normalized.entry.description?.length ?? null,
+      reason: result.text === INVALID_CONTEXT_MESSAGE ? 'invalid_context' : result.text === BOTS_NOT_SUPPORTED_MESSAGE ? 'bot_account' : result.text === NOT_REGISTERED_MESSAGE ? 'not_registered' : null,
+    }),
+  })
+  await replyWithResult(ctx, result)
 }
 
 export function registerBotHandlers(bot: Bot): void {
@@ -413,6 +464,43 @@ export function registerBotHandlers(bot: Bot): void {
         status: 'error',
         messageKind: 'text',
         context: getEventContext(ctx, {textLength: text.length, error, reason: 'handler_failed'}),
+      })
+      await safelyIncrementErrorCounter(ctx)
+      await reply(ctx, INTERNAL_ERROR_MESSAGE)
+    }
+  })
+
+  bot.on(['message:photo', 'message:voice', 'message:audio', 'message:document', 'message:video', 'message:sticker'], async (ctx) => {
+    try {
+      await handleCapturableMessage(ctx, ctx.message)
+    } catch (error) {
+      const identity = getUserIdentity(ctx)
+      console.error(`${env.logPrefix} media message handler failed`, error)
+      await safelyRecordBotEvent({
+        ...getEventActor(identity),
+        kind: 'error',
+        action: 'media_failed',
+        status: 'error',
+        context: getEventContext(ctx, {error, reason: 'handler_failed'}),
+      })
+      await safelyIncrementErrorCounter(ctx)
+      await reply(ctx, INTERNAL_ERROR_MESSAGE)
+    }
+  })
+
+  bot.on('message', async (ctx) => {
+    try {
+      await handleCapturableMessage(ctx, ctx.message)
+    } catch (error) {
+      const identity = getUserIdentity(ctx)
+      console.error(`${env.logPrefix} unsupported message handler failed`, error)
+      await safelyRecordBotEvent({
+        ...getEventActor(identity),
+        kind: 'error',
+        action: 'unsupported_failed',
+        status: 'error',
+        messageKind: 'unsupported',
+        context: getEventContext(ctx, {error, reason: 'handler_failed'}),
       })
       await safelyIncrementErrorCounter(ctx)
       await reply(ctx, INTERNAL_ERROR_MESSAGE)

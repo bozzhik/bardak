@@ -1,5 +1,5 @@
 import type {BotDataClient} from '@/bot/flow'
-import type {CancelTagFlowArgs, CancelTagFlowResult, CompleteTagFlowByIdArgs, CompleteTagFlowByIdResult, CompleteTagFlowArgs, CompleteTagFlowResult, CountInboxArgs, CountInboxResult, EnsureTagArgs, EnsureTagResult, FindTagArgs, FindTagResult, ListTagsArgs, ListTagsResult, NextInboxArgs, NextInboxResult, RegisterOnStartArgs, RegisterOnStartResult, RemoveTagArgs, RemoveTagResult, RenameTagArgs, RenameTagResult, SaveEntryArgs, SaveEntryResult, TouchOnCommandResult, TouchOnTextResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
+import type {CancelTagFlowArgs, CancelTagFlowResult, CompleteDescriptionFlowArgs, CompleteDescriptionFlowResult, CompleteTagFlowByIdArgs, CompleteTagFlowByIdResult, CompleteTagFlowArgs, CompleteTagFlowResult, CountInboxArgs, CountInboxResult, EnsureTagArgs, EnsureTagResult, FindTagArgs, FindTagResult, GetActiveFlowArgs, GetActiveFlowResult, ListTagsArgs, ListTagsResult, NextInboxArgs, NextInboxResult, RegisterOnStartArgs, RegisterOnStartResult, RemoveTagArgs, RemoveTagResult, RenameTagArgs, RenameTagResult, SaveEntryArgs, SaveEntryResult, TouchOnCommandResult, TouchOnTextResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
 
 type FakeBotDataClientOptions = {
   registerResult?: RegisterOnStartResult
@@ -14,8 +14,10 @@ type FakeBotDataClientOptions = {
   removeTagResult?: RemoveTagResult
   saveEntryResult?: SaveEntryResult
   upsertFlowResult?: UpsertFlowResult
+  activeFlowResult?: GetActiveFlowResult
   completeTagFlowResult?: CompleteTagFlowResult
   completeTagFlowByIdResult?: CompleteTagFlowByIdResult
+  completeDescriptionFlowResult?: CompleteDescriptionFlowResult
   cancelTagFlowResult?: CancelTagFlowResult
 }
 
@@ -32,9 +34,11 @@ export type FakeBotDataClient = BotDataClient & {
   removeTagCalls: RemoveTagArgs[]
   completeTagFlowCalls: CompleteTagFlowArgs[]
   completeTagFlowByIdCalls: CompleteTagFlowByIdArgs[]
+  completeDescriptionFlowCalls: CompleteDescriptionFlowArgs[]
   cancelTagFlowCalls: CancelTagFlowArgs[]
   saveEntryCalls: SaveEntryArgs[]
   upsertFlowCalls: UpsertFlowArgs[]
+  activeFlowCalls: GetActiveFlowArgs[]
 }
 
 export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}): FakeBotDataClient {
@@ -50,9 +54,11 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
   const removeTagCalls: RemoveTagArgs[] = []
   const completeTagFlowCalls: CompleteTagFlowArgs[] = []
   const completeTagFlowByIdCalls: CompleteTagFlowByIdArgs[] = []
+  const completeDescriptionFlowCalls: CompleteDescriptionFlowArgs[] = []
   const cancelTagFlowCalls: CancelTagFlowArgs[] = []
   const saveEntryCalls: SaveEntryArgs[] = []
   const upsertFlowCalls: UpsertFlowArgs[] = []
+  const activeFlowCalls: GetActiveFlowArgs[] = []
   const registerResult = options.registerResult ?? {
     status: 'updated',
     userId: 'users:test',
@@ -101,10 +107,16 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
     status: 'created',
     flowId: 'flows:test',
   }
+  const activeFlowResult = options.activeFlowResult ?? {
+    status: 'none',
+  }
   const completeTagFlowResult = options.completeTagFlowResult ?? {
     status: 'no_active',
   }
   const completeTagFlowByIdResult = options.completeTagFlowByIdResult ?? {
+    status: 'no_active',
+  }
+  const completeDescriptionFlowResult = options.completeDescriptionFlowResult ?? {
     status: 'no_active',
   }
   const cancelTagFlowResult = options.cancelTagFlowResult ?? {
@@ -124,9 +136,11 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
     removeTagCalls,
     completeTagFlowCalls,
     completeTagFlowByIdCalls,
+    completeDescriptionFlowCalls,
     cancelTagFlowCalls,
     saveEntryCalls,
     upsertFlowCalls,
+    activeFlowCalls,
     async registerOnStart(args) {
       registerCalls.push(args)
       return registerResult
@@ -175,6 +189,10 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
       completeTagFlowByIdCalls.push(args)
       return completeTagFlowByIdResult
     },
+    async completeDescriptionFlow(args) {
+      completeDescriptionFlowCalls.push(args)
+      return completeDescriptionFlowResult
+    },
     async cancelTagFlow(args) {
       cancelTagFlowCalls.push(args)
       return cancelTagFlowResult
@@ -186,6 +204,10 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
     async upsertFlow(args) {
       upsertFlowCalls.push(args)
       return upsertFlowResult
+    },
+    async getActiveFlow(args) {
+      activeFlowCalls.push(args)
+      return activeFlowResult
     },
   }
 }

@@ -5,6 +5,8 @@ import type {Id} from '@convex/_generated/dataModel'
 import {paginationOptsValidator} from 'convex/server'
 import {v} from 'convex/values'
 
+const flowKind = v.union(v.literal('tag'), v.literal('description'))
+
 async function ensureTag(ctx: MutationCtx, userId: Id<'users'>, rawTag: string, now: number): Promise<Id<'tags'> | null> {
   const tag = normalizeTagToken(rawTag)
   if (tag === null) return null
@@ -45,7 +47,7 @@ export const upsertActive = mutation({
   args: {
     userId: v.id('users'),
     chatId: v.number(),
-    kind: v.literal('tag'),
+    kind: flowKind,
     entryId: v.id('entries'),
   },
   returns: v.object({
@@ -63,7 +65,7 @@ export const upsertActive = mutation({
       await ctx.db.patch(existing._id, {
         kind: args.kind,
         entryId: args.entryId,
-        step: 'tag',
+        step: args.kind,
         updatedAt: now,
       })
 
@@ -79,7 +81,7 @@ export const upsertActive = mutation({
       kind: args.kind,
       status: 'active',
       entryId: args.entryId,
-      step: 'tag',
+      step: args.kind,
       createdAt: now,
       updatedAt: now,
       expiresAt: null,
@@ -88,6 +90,37 @@ export const upsertActive = mutation({
     return {
       status: 'created' as const,
       flowId,
+    }
+  },
+})
+
+export const getActive = query({
+  args: {
+    userId: v.id('users'),
+    chatId: v.number(),
+  },
+  returns: v.union(
+    v.object({status: v.literal('none')}),
+    v.object({
+      status: v.literal('active'),
+      flowId: v.id('flows'),
+      kind: flowKind,
+      entryId: v.union(v.id('entries'), v.null()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const active = await ctx.db
+      .query('flows')
+      .withIndex('by_userId_and_chatId_and_status', (q) => q.eq('userId', args.userId).eq('chatId', args.chatId).eq('status', 'active'))
+      .unique()
+
+    if (active === null) return {status: 'none' as const}
+
+    return {
+      status: 'active' as const,
+      flowId: active._id,
+      kind: active.kind,
+      entryId: active.entryId,
     }
   },
 })
@@ -118,7 +151,7 @@ export const completeTag = mutation({
       .withIndex('by_userId_and_chatId_and_status', (q) => q.eq('userId', args.userId).eq('chatId', args.chatId).eq('status', 'active'))
       .unique()
 
-    if (active === null) return {status: 'no_active' as const}
+    if (active === null || active.kind !== 'tag') return {status: 'no_active' as const}
 
     if (active.entryId === null) return {status: 'no_active' as const}
 
@@ -189,7 +222,7 @@ export const completeTagById = mutation({
       .withIndex('by_userId_and_chatId_and_status', (q) => q.eq('userId', args.userId).eq('chatId', args.chatId).eq('status', 'active'))
       .unique()
 
-    if (active === null || active.entryId === null) return {status: 'no_active' as const}
+    if (active === null || active.kind !== 'tag' || active.entryId === null) return {status: 'no_active' as const}
 
     const now = Date.now()
     await linkTag(ctx, args.userId, active.entryId, args.tagId, now)
@@ -208,6 +241,66 @@ export const completeTagById = mutation({
       entryId: active.entryId,
       tagId: args.tagId,
       tagName: tag.name,
+    }
+  },
+})
+
+export const completeDescription = mutation({
+  args: {
+    userId: v.id('users'),
+    chatId: v.number(),
+    description: v.string(),
+  },
+  returns: v.union(
+    v.object({status: v.literal('no_active')}),
+    v.object({
+      status: v.literal('invalid_description'),
+      flowId: v.id('flows'),
+      entryId: v.id('entries'),
+    }),
+    v.object({
+      status: v.literal('described'),
+      flowId: v.id('flows'),
+      entryId: v.id('entries'),
+      description: v.string(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const active = await ctx.db
+      .query('flows')
+      .withIndex('by_userId_and_chatId_and_status', (q) => q.eq('userId', args.userId).eq('chatId', args.chatId).eq('status', 'active'))
+      .unique()
+
+    if (active === null || active.kind !== 'description' || active.entryId === null) {
+      return {status: 'no_active' as const}
+    }
+
+    const description = args.description.trim()
+    if (description.length === 0) {
+      return {
+        status: 'invalid_description' as const,
+        flowId: active._id,
+        entryId: active.entryId,
+      }
+    }
+
+    const now = Date.now()
+    await ctx.db.patch(active.entryId, {
+      description,
+      descriptionSource: 'user',
+      updatedAt: now,
+    })
+    await ctx.db.patch(active._id, {
+      kind: 'tag',
+      step: 'tag',
+      updatedAt: now,
+    })
+
+    return {
+      status: 'described' as const,
+      flowId: active._id,
+      entryId: active.entryId,
+      description,
     }
   },
 })
@@ -272,7 +365,7 @@ export const list = query({
         _creationTime: v.number(),
         userId: v.id('users'),
         chatId: v.number(),
-        kind: v.literal('tag'),
+        kind: v.union(v.literal('tag'), v.literal('description')),
         status: v.union(v.literal('active'), v.literal('done'), v.literal('cancelled')),
         entryId: v.union(v.id('entries'), v.null()),
         step: v.string(),
@@ -297,7 +390,7 @@ export const getById = query({
       _creationTime: v.number(),
       userId: v.id('users'),
       chatId: v.number(),
-      kind: v.literal('tag'),
+      kind: v.union(v.literal('tag'), v.literal('description')),
       status: v.union(v.literal('active'), v.literal('done'), v.literal('cancelled')),
       entryId: v.union(v.id('entries'), v.null()),
       step: v.string(),
@@ -317,7 +410,7 @@ export const create = mutation({
     doc: v.object({
       userId: v.id('users'),
       chatId: v.number(),
-      kind: v.literal('tag'),
+      kind: v.union(v.literal('tag'), v.literal('description')),
       status: v.union(v.literal('active'), v.literal('done'), v.literal('cancelled')),
       entryId: v.union(v.id('entries'), v.null()),
       step: v.string(),
@@ -338,7 +431,7 @@ export const update = mutation({
     patch: v.object({
       userId: v.optional(v.id('users')),
       chatId: v.optional(v.number()),
-      kind: v.optional(v.literal('tag')),
+      kind: v.optional(v.union(v.literal('tag'), v.literal('description'))),
       status: v.optional(v.union(v.literal('active'), v.literal('done'), v.literal('cancelled'))),
       entryId: v.optional(v.union(v.id('entries'), v.null())),
       step: v.optional(v.string()),

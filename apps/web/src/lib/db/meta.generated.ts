@@ -359,7 +359,7 @@ export const dbMeta = {
     fields: {
       userId: {kind: 'id', table: 'users', optional: false},
       chatId: {kind: 'number', optional: false},
-      kind: {kind: 'literal', valueType: 'string', values: ['tag'], optional: false},
+      kind: {kind: 'enum', valueType: 'string', values: ['tag', 'description'], optional: false},
       status: {kind: 'enum', valueType: 'string', values: ['active', 'done', 'cancelled'], optional: false},
       entryId: {
         kind: 'union',

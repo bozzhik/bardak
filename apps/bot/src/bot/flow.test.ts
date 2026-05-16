@@ -4,7 +4,8 @@ import type {UserIdentityPayload} from '@/convex/functions'
 
 import {BOTS_NOT_SUPPORTED_MESSAGE, INVALID_CONTEXT_MESSAGE, NOT_REGISTERED_MESSAGE, START_MESSAGE} from '@/bot/messages'
 import {createFakeBotDataClient} from '@/convex/fake-client'
-import {handleCallback, handleInbox, handleInboxCount, handleStart, handleTagDelete, handleTagNew, handleTagRename, handleTags, handleText, inboxSkipCallback, readStartPayload, tagDeleteCancelCallback, tagDeleteConfirmCallback, tagPickCallback} from '@/bot/flow'
+import {handleCallback, handleInbox, handleInboxCount, handleMessage, handleStart, handleTagDelete, handleTagNew, handleTagRename, handleTags, handleText, inboxSkipCallback, readStartPayload, tagDeleteCancelCallback, tagDeleteConfirmCallback, tagPickCallback} from '@/bot/flow'
+import type {NormalizedEntryMessage} from '@/telegram/normalize'
 
 const USER: UserIdentityPayload = {
   telegramId: 42,
@@ -18,6 +19,37 @@ const USER: UserIdentityPayload = {
   isPremium: null,
   timezone: null,
   locale: 'en',
+}
+
+const PHOTO_MESSAGE: NormalizedEntryMessage = {
+  messageId: 500,
+  kind: 'photo',
+  text: null,
+  description: null,
+  descriptionSource: 'none',
+  url: null,
+  telegram: {
+    type: 'message:photo',
+    context: {
+      forwardOrigin: null,
+      forwardDate: null,
+      replyToMessageId: null,
+    },
+    file: {
+      fileId: 'photo-file',
+      fileUniqueId: 'photo-unique',
+      fileName: null,
+      mimeType: null,
+      fileSize: 1000,
+      duration: null,
+      width: 1280,
+      height: 720,
+      emoji: null,
+      setName: null,
+      isAnimated: null,
+      isVideo: null,
+    },
+  },
 }
 
 describe('bot flow', () => {
@@ -174,6 +206,144 @@ describe('bot flow', () => {
       },
     ])
     expect(client.upsertFlowCalls).toHaveLength(0)
+  })
+
+  test('text messages with a URL save a link entry with the first URL', async () => {
+    const client = createFakeBotDataClient()
+
+    const result = await handleText({identity: USER, messageId: 104, text: 'read https://example.com/a #read'}, client)
+
+    expect(result).toEqual({type: 'reply', text: 'Сохранил с тегом #read.'})
+    expect(client.saveEntryCalls).toEqual([
+      {
+        userId: 'users:test',
+        sourceChatId: 420,
+        sourceMessageId: 104,
+        kind: 'link',
+        text: 'read https://example.com/a #read',
+        description: null,
+        descriptionSource: 'text',
+        url: 'https://example.com/a',
+        tags: ['#read'],
+      },
+    ])
+  })
+
+  test('photo without caption saves metadata and starts description flow', async () => {
+    const client = createFakeBotDataClient()
+
+    const result = await handleMessage({identity: USER, message: PHOTO_MESSAGE}, client)
+
+    expect(result).toEqual({type: 'reply', text: 'Сохранил во входящие. Опиши материал несколькими словами, чтобы я мог найти его позже.'})
+    expect(client.saveEntryCalls).toEqual([
+      {
+        userId: 'users:test',
+        sourceChatId: 420,
+        sourceMessageId: 500,
+        kind: 'photo',
+        text: null,
+        description: null,
+        descriptionSource: 'none',
+        url: null,
+        tags: [],
+        telegram: PHOTO_MESSAGE.telegram,
+      },
+    ])
+    expect(client.upsertFlowCalls).toEqual([{userId: 'users:test', chatId: 420, kind: 'description', entryId: 'entries:test'}])
+  })
+
+  test('photo with caption saves description and starts tag flow', async () => {
+    const client = createFakeBotDataClient()
+    const message: NormalizedEntryMessage = {
+      ...PHOTO_MESSAGE,
+      messageId: 501,
+      description: 'receipt from hardware store',
+      descriptionSource: 'caption',
+    }
+
+    const result = await handleMessage({identity: USER, message}, client)
+
+    expect(result).toEqual({type: 'reply', text: 'Сохранил во входящие. Напиши тег в формате #example.'})
+    expect(client.saveEntryCalls).toMatchObject([
+      {
+        sourceMessageId: 501,
+        kind: 'photo',
+        description: 'receipt from hardware store',
+        descriptionSource: 'caption',
+        tags: [],
+      },
+    ])
+    expect(client.upsertFlowCalls).toEqual([{userId: 'users:test', chatId: 420, kind: 'tag', entryId: 'entries:test'}])
+  })
+
+  test('media caption with inline tags saves without follow-up flow', async () => {
+    const client = createFakeBotDataClient()
+    const message: NormalizedEntryMessage = {
+      ...PHOTO_MESSAGE,
+      messageId: 502,
+      description: 'receipt #tax',
+      descriptionSource: 'caption',
+    }
+
+    const result = await handleMessage({identity: USER, message}, client)
+
+    expect(result).toEqual({type: 'reply', text: 'Сохранил с тегом #tax.'})
+    expect(client.saveEntryCalls).toMatchObject([{kind: 'photo', description: 'receipt #tax', tags: ['#tax']}])
+    expect(client.upsertFlowCalls).toHaveLength(0)
+  })
+
+  test('unsupported messages save as inbox entries and ask for description', async () => {
+    const client = createFakeBotDataClient()
+    const message: NormalizedEntryMessage = {
+      ...PHOTO_MESSAGE,
+      messageId: 503,
+      kind: 'unsupported',
+      telegram: {
+        ...PHOTO_MESSAGE.telegram,
+        type: 'message:location',
+      },
+    }
+
+    const result = await handleMessage({identity: USER, message}, client)
+
+    expect(result).toEqual({type: 'reply', text: 'Пока не умею разобрать этот тип. Опиши его несколькими словами, и я сохраню описание.'})
+    expect(client.saveEntryCalls).toMatchObject([{kind: 'unsupported', description: null, descriptionSource: 'none', tags: []}])
+    expect(client.upsertFlowCalls).toEqual([{userId: 'users:test', chatId: 420, kind: 'description', entryId: 'entries:test'}])
+  })
+
+  test('media messages do not replace an active flow', async () => {
+    const client = createFakeBotDataClient({
+      activeFlowResult: {
+        status: 'active',
+        flowId: 'flows:active',
+        kind: 'description',
+        entryId: 'entries:old',
+      },
+    })
+
+    const result = await handleMessage({identity: USER, message: PHOTO_MESSAGE}, client)
+
+    expect(result).toEqual({type: 'reply', text: 'Сначала закончим предыдущий материал: напиши описание или тег, потом пришли новый материал.'})
+    expect(client.activeFlowCalls).toEqual([{userId: 'users:test', chatId: 420}])
+    expect(client.saveEntryCalls).toHaveLength(0)
+    expect(client.upsertFlowCalls).toHaveLength(0)
+  })
+
+  test('active description flow consumes the next text as searchable description', async () => {
+    const client = createFakeBotDataClient({
+      completeDescriptionFlowResult: {
+        status: 'described',
+        flowId: 'flows:test',
+        entryId: 'entries:test',
+        description: 'photo of monitor adapter',
+      },
+    })
+
+    const result = await handleText({identity: USER, messageId: 105, text: 'photo of monitor adapter'}, client)
+
+    expect(result).toEqual({type: 'reply', text: 'Сохранил описание. Теперь напиши тег в формате #example или оставь во входящих.'})
+    expect(client.completeDescriptionFlowCalls).toEqual([{userId: 'users:test', chatId: 420, description: 'photo of monitor adapter'}])
+    expect(client.saveEntryCalls).toHaveLength(0)
   })
 
   test('active tag flow consumes the next hashtag message instead of saving a new entry', async () => {
