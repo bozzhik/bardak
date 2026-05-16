@@ -15,7 +15,7 @@
 | UI           | Tailwind CSS v4 + shadcn/ui `base-nova` + Lucide             |
 | AI           | OpenRouter как будущий gateway к моделям                     |
 | Auth         | Telegram Login Widget / Telegram WebApp initData             |
-| Payments     | YooMoney/U-Money как первый планируемый provider             |
+| Payments     | YooMoney/ЮMoney как первый планируемый provider              |
 | Деплой       | Docker + Coolify на VPS                                      |
 | Аналитика    | Yandex Metrika подключена, PostHog позже                     |
 | Логирование  | pino позже                                                   |
@@ -35,8 +35,9 @@
 | [`02-development.md`](./02-development.md) | Технические правила, стек, архитектура, тестирование           |
 | [`03-plan.md`](./03-plan.md)               | Главный линейный план разработки                               |
 | [`04-bot.md`](./04-bot.md)                 | Спецификация Telegram-бота и текущих bot-first сценариев       |
+| [`05-payments.md`](./05-payments.md)       | YooMoney-регистрация, payment flow, webhook и entitlements     |
 
-Отдельного документа первой версии нет. Мы не ведём параллельный план, чтобы не было двух источников правды. Текущий объём работ определяется `03-plan.md`, а детали бота — `04-bot.md`.
+Отдельного документа первой версии нет. Мы не ведём параллельный план, чтобы не было двух источников правды. Текущий объём работ определяется `03-plan.md`, детали бота — `04-bot.md`, а платёжный контракт — `05-payments.md`.
 
 ---
 
@@ -259,9 +260,13 @@ AI не должен быть обязательным для core-flow. Сна�
 
 Оплата добавляется после минимального bot-MVP, когда есть понятный бесплатный опыт и ограничения.
 
+Подробная спецификация YooMoney: [`05-payments.md`](./05-payments.md).
+
 Правила:
 
-- первый планируемый provider — YooMoney/U-Money;
+- первый планируемый provider — YooMoney/ЮMoney;
+- первый flow — quickpay/form + HTTP-уведомления по `label`, без хранения платёжных данных пользователя;
+- публичные URL первого flow: `/p/[paymentId]`, `/pay/success`, `/api/yoomoney/notify`;
 - provider-specific код держать в `packages/payments` или отдельном adapter-модуле;
 - доступ пользователя хранить как provider-independent `entitlement`;
 - payment callbacks обрабатывать идемпотентно;
@@ -328,6 +333,13 @@ bun test
 - `CONVEX_DEPLOYMENT`
 - `NEXT_PUBLIC_CONVEX_URL`
 - `NEXT_PUBLIC_CONVEX_SITE_URL`
+- `PUBLIC_BASE_URL`
+- `YOOMONEY_RECEIVER`
+- `YOOMONEY_NOTIFICATION_SECRET`
+- `YOOMONEY_CLIENT_ID`
+- `YOOMONEY_CLIENT_SECRET`
+- `YOOMONEY_REDIRECT_URI`
+- `YOOMONEY_NOTIFICATION_URI`
 
 ---
 

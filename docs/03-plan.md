@@ -53,7 +53,7 @@
 - web-кабинет;
 - внешняя web-интеграция;
 - onboarding и геймификация разбора;
-- монетизация через YooMoney/U-Money;
+- монетизация через YooMoney/ЮMoney;
 - командные сценарии;
 - память бота, стиль общения и граф связей.
 
@@ -465,11 +465,14 @@
 
 **Решения:**
 
-- Основной платный сценарий: one-time Pro.
-- Year Pro может быть альтернативой.
+- Первый платный сценарий: Pro month/year через ссылку из Telegram.
+- Lifetime Pro остаётся возможным будущим тарифом, но не блокирует первый slice.
 - Free limits применяются к тегам, AI-запросам, страницам или объёму материалов.
 - BYOK для AI остаётся отдельной возможностью.
-- Первый планируемый provider: YooMoney/U-Money, если его API и юридический сценарий подходят.
+- Первый планируемый provider: YooMoney/ЮMoney.
+- Выбранный первый flow: quickpay/form + HTTP-уведомления + `label`, без автосписаний.
+- Финальные публичные URL: `/p/[paymentId]`, `/pay/success`, `/api/yoomoney/notify`, `/api/yoomoney/callback`.
+- Детальная спецификация: [`05-payments.md`](./05-payments.md).
 - Payment events обрабатываются идемпотентно и не выдают доступ дважды.
 - Доступ пользователя хранится отдельно от payment provider как `entitlements`.
 - Сырые provider payloads можно хранить отдельно для диагностики, но не смешивать с пользовательским профилем.
@@ -477,11 +480,15 @@
 
 **Работы:**
 
-- [ ] Изучить YooMoney docs и подтвердить подходящий flow оплаты (https://yoomoney.ru/docs/wallet)
-- [ ] Спроектировать таблицы `plans`, `payments`, `entitlements`.
-- [ ] Добавить provider adapter для YooMoney/U-Money.
+- [x] Изучить YooMoney docs и подтвердить подходящий первый flow оплаты.
+- [x] Зафиксировать поля регистрации YooMoney, callback URLs и notification contract.
+- [ ] Спроектировать таблицы `plans`, `payments`, `paymentEvents`, `entitlements`.
+- [ ] Добавить provider adapter для YooMoney/ЮMoney.
 - [ ] Реализовать payment init endpoint/action.
-- [ ] Реализовать webhook/payment callback с signature validation.
+- [ ] Реализовать страницу оплаты `/p/[paymentId]`.
+- [ ] Реализовать success-страницу `/pay/success`.
+- [ ] Реализовать notification endpoint `/api/yoomoney/notify` с signature validation.
+- [ ] Зарезервировать service callback `/api/yoomoney/callback` для будущего Wallet API.
 - [ ] Реализовать idempotent payment event handling.
 - [ ] Реализовать Free limits.
 - [ ] Реализовать Pro entitlement.
@@ -499,7 +506,7 @@
 
 **DoD:**
 
-- [ ] Можно принять оплату через YooMoney/U-Money и выдать доступ.
+- [ ] Можно принять оплату через YooMoney/ЮMoney и выдать доступ.
 - [ ] Лимиты не превращаются в риск потери данных.
 - [ ] Payment provider можно заменить без переписывания core entitlement logic.
 
@@ -724,6 +731,6 @@
 
 **Можно ли использовать `jose`/JWT для защиты содержимого?** JWT-подписи подходят для access-token signing, как в `proxy.ts`, но это не encryption содержимого. Шифрование текстов и описаний — будущий отдельный слой.
 
-**Когда добавлять оплату?** После минимального bot-MVP: capture, tags, inbox, основные типы сообщений и базовый поиск. Первый планируемый provider — YooMoney/U-Money; доступ хранится как provider-independent `entitlements`.
+**Когда добавлять оплату?** После минимального bot-MVP: capture, tags, inbox, основные типы сообщений и базовый поиск. Первый планируемый provider — YooMoney/ЮMoney; выбранный первый flow описан в [`05-payments.md`](./05-payments.md). Доступ хранится как provider-independent `entitlements`.
 
 **Когда добавлять внешнюю web-интеграцию?** После стабилизации core bot/data слоя и до полноценного web-кабинета, если внешний клиент уже нужен для реального использования. Интеграция должна читать и менять те же Convex-сущности, а не заводить параллельную базу.
