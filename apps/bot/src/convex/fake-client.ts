@@ -1,5 +1,5 @@
 import type {BotDataClient} from '@/bot/flow'
-import type {CancelTagFlowArgs, CancelTagFlowResult, CompleteDescriptionFlowArgs, CompleteDescriptionFlowResult, CompleteTagFlowByIdArgs, CompleteTagFlowByIdResult, CompleteTagFlowArgs, CompleteTagFlowResult, CountInboxArgs, CountInboxResult, EnsureTagArgs, EnsureTagResult, FindTagArgs, FindTagResult, GetActiveFlowArgs, GetActiveFlowResult, ListTagsArgs, ListTagsResult, NextInboxArgs, NextInboxResult, RegisterOnStartArgs, RegisterOnStartResult, RemoveTagArgs, RemoveTagResult, RenameTagArgs, RenameTagResult, SaveEntryArgs, SaveEntryResult, TouchOnCommandResult, TouchOnTextResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
+import type {ArchiveEntryBySourceMessageArgs, ArchiveEntryBySourceMessageResult, CancelTagFlowArgs, CancelTagFlowResult, CompleteDescriptionFlowArgs, CompleteDescriptionFlowResult, CompleteTagFlowByIdArgs, CompleteTagFlowByIdResult, CompleteTagFlowArgs, CompleteTagFlowResult, CountInboxArgs, CountInboxResult, EnsureTagArgs, EnsureTagResult, FindTagArgs, FindTagResult, GetActiveFlowArgs, GetActiveFlowResult, ListTagsArgs, ListTagsResult, NextInboxArgs, NextInboxResult, RegisterOnStartArgs, RegisterOnStartResult, RemoveTagArgs, RemoveTagResult, RenameTagArgs, RenameTagResult, SaveEntryArgs, SaveEntryResult, TouchOnCommandResult, TouchOnTextResult, UpdateEntryFromEditArgs, UpdateEntryFromEditResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
 
 type FakeBotDataClientOptions = {
   registerResult?: RegisterOnStartResult
@@ -13,6 +13,8 @@ type FakeBotDataClientOptions = {
   findTagResult?: FindTagResult
   removeTagResult?: RemoveTagResult
   saveEntryResult?: SaveEntryResult
+  updateEntryFromEditResult?: UpdateEntryFromEditResult
+  archiveEntryBySourceMessageResult?: ArchiveEntryBySourceMessageResult
   upsertFlowResult?: UpsertFlowResult
   activeFlowResult?: GetActiveFlowResult
   completeTagFlowResult?: CompleteTagFlowResult
@@ -37,6 +39,8 @@ export type FakeBotDataClient = BotDataClient & {
   completeDescriptionFlowCalls: CompleteDescriptionFlowArgs[]
   cancelTagFlowCalls: CancelTagFlowArgs[]
   saveEntryCalls: SaveEntryArgs[]
+  updateEntryFromEditCalls: UpdateEntryFromEditArgs[]
+  archiveEntryBySourceMessageCalls: ArchiveEntryBySourceMessageArgs[]
   upsertFlowCalls: UpsertFlowArgs[]
   activeFlowCalls: GetActiveFlowArgs[]
 }
@@ -57,6 +61,8 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
   const completeDescriptionFlowCalls: CompleteDescriptionFlowArgs[] = []
   const cancelTagFlowCalls: CancelTagFlowArgs[] = []
   const saveEntryCalls: SaveEntryArgs[] = []
+  const updateEntryFromEditCalls: UpdateEntryFromEditArgs[] = []
+  const archiveEntryBySourceMessageCalls: ArchiveEntryBySourceMessageArgs[] = []
   const upsertFlowCalls: UpsertFlowArgs[] = []
   const activeFlowCalls: GetActiveFlowArgs[] = []
   const registerResult = options.registerResult ?? {
@@ -103,6 +109,16 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
     entryStatus: 'inbox',
     tagIds: [],
   }
+  const updateEntryFromEditResult = options.updateEntryFromEditResult ?? {
+    status: 'updated',
+    entryId: 'entries:test',
+    entryStatus: 'inbox',
+    tagIds: [],
+  }
+  const archiveEntryBySourceMessageResult = options.archiveEntryBySourceMessageResult ?? {
+    status: 'archived',
+    entryId: 'entries:test',
+  }
   const upsertFlowResult = options.upsertFlowResult ?? {
     status: 'created',
     flowId: 'flows:test',
@@ -139,6 +155,8 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
     completeDescriptionFlowCalls,
     cancelTagFlowCalls,
     saveEntryCalls,
+    updateEntryFromEditCalls,
+    archiveEntryBySourceMessageCalls,
     upsertFlowCalls,
     activeFlowCalls,
     async registerOnStart(args) {
@@ -200,6 +218,14 @@ export function createFakeBotDataClient(options: FakeBotDataClientOptions = {}):
     async saveEntry(args) {
       saveEntryCalls.push(args)
       return args.tags.length > 0 ? {...saveEntryResult, entryStatus: 'saved', tagIds: ['tags:test']} : saveEntryResult
+    },
+    async updateEntryFromEdit(args) {
+      updateEntryFromEditCalls.push(args)
+      return args.tags.length > 0 && updateEntryFromEditResult.status === 'updated' ? {...updateEntryFromEditResult, entryStatus: 'saved', tagIds: ['tags:test']} : updateEntryFromEditResult
+    },
+    async archiveEntryBySourceMessage(args) {
+      archiveEntryBySourceMessageCalls.push(args)
+      return archiveEntryBySourceMessageResult
     },
     async upsertFlow(args) {
       upsertFlowCalls.push(args)

@@ -1,12 +1,12 @@
 import {type Bot, type Context} from 'grammy'
 
 import type {RecordBotEventArgs, UserIdentityPayload} from '@/convex/functions'
-import {BOTS_NOT_SUPPORTED_MESSAGE, HELP_MESSAGE, INBOX_EMPTY_MESSAGE, INTERNAL_ERROR_MESSAGE, INVALID_CONTEXT_MESSAGE, NOT_REGISTERED_MESSAGE, TAG_DELETE_USAGE_MESSAGE, TAG_NEW_USAGE_MESSAGE, TAG_RENAME_USAGE_MESSAGE} from '@/bot/messages'
+import {BOTS_NOT_SUPPORTED_MESSAGE, HELP_MESSAGE, INBOX_EMPTY_MESSAGE, INTERNAL_ERROR_MESSAGE, INVALID_CONTEXT_MESSAGE, NOT_REGISTERED_MESSAGE, PRIVATE_ONLY_MESSAGE, TAG_DELETE_USAGE_MESSAGE, TAG_NEW_USAGE_MESSAGE, TAG_RENAME_USAGE_MESSAGE} from '@/bot/messages'
 
 import {env} from '@/config/env'
 import {getUserIdentity} from '@/bot/context'
-import {handleCallback, handleInbox, handleInboxCount, handleMessage, handleStart, handleTagDelete, handleTagNew, handleTagRename, handleTags, handleText, readStartPayload, type ReplyButton, type ReplyResult} from '@/bot/flow'
-import {cancelTagFlow, completeDescriptionFlow, completeTagFlow, completeTagFlowById, countInbox, ensureTag, findTag, getActiveFlow, getNextInbox, incrementErrorCounter, listTags, recordBotEvent, registerOnStart, removeTag, renameTag, saveEntry, touchOnCommand, touchOnText, upsertFlow} from '@/convex/client'
+import {handleCallback, handleDelete, handleEditedMessage, handleInbox, handleInboxCount, handleMessage, handleStart, handleTagDelete, handleTagNew, handleTagRename, handleTags, handleTextMessage, readStartPayload, type ReplyButton, type ReplyResult} from '@/bot/flow'
+import {archiveEntryBySourceMessage, cancelTagFlow, completeDescriptionFlow, completeTagFlow, completeTagFlowById, countInbox, ensureTag, findTag, getActiveFlow, getNextInbox, incrementErrorCounter, listTags, recordBotEvent, registerOnStart, removeTag, renameTag, saveEntry, touchOnCommand, touchOnText, updateEntryFromEdit, upsertFlow} from '@/convex/client'
 import {normalizeTelegramMessage, type EntryKind, type TelegramMessageLike} from '@/telegram/normalize'
 
 const botDataClient = {
@@ -25,6 +25,8 @@ const botDataClient = {
   completeDescriptionFlow,
   cancelTagFlow,
   saveEntry,
+  updateEntryFromEdit,
+  archiveEntryBySourceMessage,
   upsertFlow,
   getActiveFlow,
 }
@@ -56,7 +58,16 @@ async function replyWithResult(ctx: Context, result: ReplyResult): Promise<void>
 }
 
 function isRejectedText(text: string): boolean {
-  return text === INVALID_CONTEXT_MESSAGE || text === BOTS_NOT_SUPPORTED_MESSAGE || text === NOT_REGISTERED_MESSAGE || text === TAG_NEW_USAGE_MESSAGE || text === TAG_RENAME_USAGE_MESSAGE || text === TAG_DELETE_USAGE_MESSAGE
+  return text === INVALID_CONTEXT_MESSAGE || text === BOTS_NOT_SUPPORTED_MESSAGE || text === PRIVATE_ONLY_MESSAGE || text === NOT_REGISTERED_MESSAGE || text === TAG_NEW_USAGE_MESSAGE || text === TAG_RENAME_USAGE_MESSAGE || text === TAG_DELETE_USAGE_MESSAGE
+}
+
+function rejectedReason(text: string): string | null {
+  if (text === INVALID_CONTEXT_MESSAGE) return 'invalid_context'
+  if (text === BOTS_NOT_SUPPORTED_MESSAGE) return 'bot_account'
+  if (text === PRIVATE_ONLY_MESSAGE) return 'private_only'
+  if (text === NOT_REGISTERED_MESSAGE) return 'not_registered'
+  if (text === TAG_NEW_USAGE_MESSAGE || text === TAG_RENAME_USAGE_MESSAGE || text === TAG_DELETE_USAGE_MESSAGE) return 'invalid_tag'
+  return null
 }
 
 async function safelyIncrementErrorCounter(ctx: Context): Promise<void> {
@@ -129,7 +140,7 @@ async function handleCapturableMessage(ctx: Context, message: TelegramMessageLik
     return
   }
 
-  const result = await handleMessage({identity, message: normalized.entry}, botDataClient)
+  const result = normalized.entry.kind === 'text' || normalized.entry.kind === 'link' ? await handleTextMessage({identity, message: normalized.entry}, botDataClient) : await handleMessage({identity, message: normalized.entry}, botDataClient)
   if (identity !== null && !identity.isBotAccount) {
     if (normalized.entry.kind === 'text' && normalized.entry.text !== null) {
       logHandledText(identity, normalized.entry.text)
@@ -142,11 +153,31 @@ async function handleCapturableMessage(ctx: Context, message: TelegramMessageLik
     ...getEventActor(identity),
     kind: 'message',
     action: normalized.entry.kind,
-    status: result.text === INVALID_CONTEXT_MESSAGE || result.text === BOTS_NOT_SUPPORTED_MESSAGE || result.text === NOT_REGISTERED_MESSAGE ? 'rejected' : 'ok',
+    status: isRejectedText(result.text) ? 'rejected' : 'ok',
     messageKind: normalized.entry.kind,
     context: getEventContext(ctx, {
       textLength: normalized.entry.text?.length ?? normalized.entry.description?.length ?? null,
-      reason: result.text === INVALID_CONTEXT_MESSAGE ? 'invalid_context' : result.text === BOTS_NOT_SUPPORTED_MESSAGE ? 'bot_account' : result.text === NOT_REGISTERED_MESSAGE ? 'not_registered' : null,
+      reason: rejectedReason(result.text),
+    }),
+  })
+  await replyWithResult(ctx, result)
+}
+
+async function handleEditedCapturableMessage(ctx: Context, message: TelegramMessageLike): Promise<void> {
+  const identity = getUserIdentity(ctx)
+  const normalized = normalizeTelegramMessage(message)
+  if (normalized.kind === 'command') return
+
+  const result = await handleEditedMessage({identity, message: normalized.entry}, botDataClient)
+  await safelyRecordBotEvent({
+    ...getEventActor(identity),
+    kind: 'message',
+    action: 'edited',
+    status: isRejectedText(result.text) ? 'rejected' : 'ok',
+    messageKind: normalized.entry.kind,
+    context: getEventContext(ctx, {
+      textLength: normalized.entry.text?.length ?? normalized.entry.description?.length ?? null,
+      reason: rejectedReason(result.text),
     }),
   })
   await replyWithResult(ctx, result)
@@ -171,11 +202,11 @@ export function registerBotHandlers(bot: Bot): void {
         ...getEventActor(identity),
         kind: 'command',
         action: 'start',
-        status: identity === null || identity.isBotAccount ? 'rejected' : 'ok',
+        status: isRejectedText(result.text) ? 'rejected' : 'ok',
         command: '/start',
         context: getEventContext(ctx, {
           textLength: ctx.message?.text?.length ?? null,
-          reason: identity === null ? 'invalid_context' : identity.isBotAccount ? 'bot_account' : null,
+          reason: rejectedReason(result.text),
         }),
       })
       await replyWithResult(ctx, result)
@@ -228,7 +259,7 @@ export function registerBotHandlers(bot: Bot): void {
         command: '/inbox_count',
         context: getEventContext(ctx, {
           textLength: ctx.message?.text?.length ?? null,
-          reason: result.text === INVALID_CONTEXT_MESSAGE ? 'invalid_context' : result.text === BOTS_NOT_SUPPORTED_MESSAGE ? 'bot_account' : result.text === NOT_REGISTERED_MESSAGE ? 'not_registered' : null,
+          reason: rejectedReason(result.text),
         }),
       })
       await replyWithResult(ctx, result)
@@ -263,7 +294,7 @@ export function registerBotHandlers(bot: Bot): void {
         command: '/inbox',
         context: getEventContext(ctx, {
           textLength: ctx.message?.text?.length ?? null,
-          reason: result.text === INVALID_CONTEXT_MESSAGE ? 'invalid_context' : result.text === BOTS_NOT_SUPPORTED_MESSAGE ? 'bot_account' : result.text === NOT_REGISTERED_MESSAGE ? 'not_registered' : result.text === INBOX_EMPTY_MESSAGE ? 'empty' : null,
+          reason: rejectedReason(result.text) ?? (result.text === INBOX_EMPTY_MESSAGE ? 'empty' : null),
         }),
       })
       await replyWithResult(ctx, result)
@@ -298,7 +329,7 @@ export function registerBotHandlers(bot: Bot): void {
         command: '/tags',
         context: getEventContext(ctx, {
           textLength: ctx.message?.text?.length ?? null,
-          reason: result.text === INVALID_CONTEXT_MESSAGE ? 'invalid_context' : result.text === BOTS_NOT_SUPPORTED_MESSAGE ? 'bot_account' : result.text === NOT_REGISTERED_MESSAGE ? 'not_registered' : null,
+          reason: rejectedReason(result.text),
         }),
       })
       await replyWithResult(ctx, result)
@@ -333,7 +364,7 @@ export function registerBotHandlers(bot: Bot): void {
         command: '/tag_new',
         context: getEventContext(ctx, {
           textLength: ctx.message?.text?.length ?? null,
-          reason: result.text === INVALID_CONTEXT_MESSAGE ? 'invalid_context' : result.text === BOTS_NOT_SUPPORTED_MESSAGE ? 'bot_account' : result.text === NOT_REGISTERED_MESSAGE ? 'not_registered' : result.text === TAG_NEW_USAGE_MESSAGE ? 'invalid_tag' : null,
+          reason: rejectedReason(result.text),
         }),
       })
       await replyWithResult(ctx, result)
@@ -366,7 +397,7 @@ export function registerBotHandlers(bot: Bot): void {
         action: 'tag_rename',
         status: isRejectedText(result.text) ? 'rejected' : 'ok',
         command: '/tag_rename',
-        context: getEventContext(ctx, {textLength: ctx.message?.text?.length ?? null, reason: isRejectedText(result.text) ? 'rejected' : null}),
+        context: getEventContext(ctx, {textLength: ctx.message?.text?.length ?? null, reason: rejectedReason(result.text)}),
       })
       await replyWithResult(ctx, result)
     } catch (error) {
@@ -398,7 +429,7 @@ export function registerBotHandlers(bot: Bot): void {
         action: 'tag_delete',
         status: isRejectedText(result.text) ? 'rejected' : 'ok',
         command: '/tag_delete',
-        context: getEventContext(ctx, {textLength: ctx.message?.text?.length ?? null, reason: isRejectedText(result.text) ? 'rejected' : null}),
+        context: getEventContext(ctx, {textLength: ctx.message?.text?.length ?? null, reason: rejectedReason(result.text)}),
       })
       await replyWithResult(ctx, result)
     } catch (error) {
@@ -416,45 +447,44 @@ export function registerBotHandlers(bot: Bot): void {
     }
   })
 
+  bot.command('delete', async (ctx) => {
+    const identity = getUserIdentity(ctx)
+    if (identity !== null && !identity.isBotAccount) {
+      logHandledCommand('/delete', identity)
+    }
+
+    try {
+      const result = await handleDelete({identity, replyToMessageId: ctx.message?.reply_to_message?.message_id ?? null}, botDataClient)
+      await safelyRecordBotEvent({
+        ...getEventActor(identity),
+        kind: 'command',
+        action: 'delete',
+        status: isRejectedText(result.text) ? 'rejected' : 'ok',
+        command: '/delete',
+        context: getEventContext(ctx, {textLength: ctx.message?.text?.length ?? null, reason: rejectedReason(result.text)}),
+      })
+      await replyWithResult(ctx, result)
+    } catch (error) {
+      console.error(`${env.logPrefix} command=/delete failed`, error)
+      await safelyRecordBotEvent({
+        ...getEventActor(identity),
+        kind: 'error',
+        action: 'delete_failed',
+        status: 'error',
+        command: '/delete',
+        context: getEventContext(ctx, {textLength: ctx.message?.text?.length ?? null, error, reason: 'handler_failed'}),
+      })
+      await safelyIncrementErrorCounter(ctx)
+      await reply(ctx, INTERNAL_ERROR_MESSAGE)
+    }
+  })
+
   bot.on('message:text', async (ctx) => {
     const text = ctx.message.text
     const identity = getUserIdentity(ctx)
 
     try {
-      const result = await handleText({identity, messageId: ctx.message.message_id, text}, botDataClient)
-      if (result.type === 'ignored_command') {
-        if (identity !== null) {
-          logHandledCommand(result.command, identity)
-        } else {
-          console.log(`${env.logPrefix} command=${result.command} handled without identity`)
-        }
-        await safelyRecordBotEvent({
-          ...getEventActor(identity),
-          kind: 'command',
-          action: 'ignored_text_command',
-          status: 'ignored',
-          command: result.command,
-          context: getEventContext(ctx, {textLength: text.length}),
-        })
-        return
-      }
-
-      if (identity !== null && !identity.isBotAccount) {
-        logHandledText(identity, text)
-      }
-
-      await safelyRecordBotEvent({
-        ...getEventActor(identity),
-        kind: 'message',
-        action: 'text',
-        status: result.text === INVALID_CONTEXT_MESSAGE || result.text === BOTS_NOT_SUPPORTED_MESSAGE || result.text === NOT_REGISTERED_MESSAGE ? 'rejected' : 'ok',
-        messageKind: 'text',
-        context: getEventContext(ctx, {
-          textLength: text.length,
-          reason: result.text === INVALID_CONTEXT_MESSAGE ? 'invalid_context' : result.text === BOTS_NOT_SUPPORTED_MESSAGE ? 'bot_account' : result.text === NOT_REGISTERED_MESSAGE ? 'not_registered' : null,
-        }),
-      })
-      await replyWithResult(ctx, result)
+      await handleCapturableMessage(ctx, ctx.message)
     } catch (error) {
       console.error(`${env.logPrefix} message:text handler failed`, error)
       await safelyRecordBotEvent({
@@ -464,6 +494,27 @@ export function registerBotHandlers(bot: Bot): void {
         status: 'error',
         messageKind: 'text',
         context: getEventContext(ctx, {textLength: text.length, error, reason: 'handler_failed'}),
+      })
+      await safelyIncrementErrorCounter(ctx)
+      await reply(ctx, INTERNAL_ERROR_MESSAGE)
+    }
+  })
+
+  bot.on('edited_message', async (ctx) => {
+    const editedMessage = ctx.editedMessage
+    if (editedMessage === undefined) return
+
+    try {
+      await handleEditedCapturableMessage(ctx, editedMessage)
+    } catch (error) {
+      const identity = getUserIdentity(ctx)
+      console.error(`${env.logPrefix} edited message handler failed`, error)
+      await safelyRecordBotEvent({
+        ...getEventActor(identity),
+        kind: 'error',
+        action: 'edited_failed',
+        status: 'error',
+        context: getEventContext(ctx, {error, reason: 'handler_failed'}),
       })
       await safelyIncrementErrorCounter(ctx)
       await reply(ctx, INTERNAL_ERROR_MESSAGE)
@@ -518,7 +569,7 @@ export function registerBotHandlers(bot: Bot): void {
         kind: 'command',
         action: 'callback',
         status: isRejectedText(result.text) ? 'rejected' : 'ok',
-        context: getEventContext(ctx, {reason: isRejectedText(result.text) ? 'rejected' : null}),
+        context: getEventContext(ctx, {reason: rejectedReason(result.text)}),
       })
       await ctx.answerCallbackQuery()
       await replyWithResult(ctx, result)

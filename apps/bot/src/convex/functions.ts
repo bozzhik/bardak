@@ -173,6 +173,38 @@ export type SaveEntryResult = {
 
 export const saveEntryRef = makeFunctionReference<'mutation', SaveEntryArgs, SaveEntryResult>('tables/entries:save')
 
+export type UpdateEntryFromEditArgs = SaveEntryArgs
+
+export type UpdateEntryFromEditResult =
+  | {
+      status: 'no_existing'
+    }
+  | {
+      status: 'updated'
+      entryId: string
+      entryStatus: 'inbox' | 'saved' | 'archived'
+      tagIds: string[]
+    }
+
+export const updateEntryFromEditRef = makeFunctionReference<'mutation', UpdateEntryFromEditArgs, UpdateEntryFromEditResult>('tables/entries:updateFromTelegramEdit')
+
+export type ArchiveEntryBySourceMessageArgs = {
+  userId: string
+  sourceChatId: number
+  sourceMessageId: number
+}
+
+export type ArchiveEntryBySourceMessageResult =
+  | {
+      status: 'missing'
+    }
+  | {
+      status: 'archived'
+      entryId: string
+    }
+
+export const archiveEntryBySourceMessageRef = makeFunctionReference<'mutation', ArchiveEntryBySourceMessageArgs, ArchiveEntryBySourceMessageResult>('tables/entries:archiveBySourceMessage')
+
 export type UpsertFlowArgs = {
   userId: string
   chatId: number

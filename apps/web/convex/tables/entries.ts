@@ -190,6 +190,130 @@ export const save = mutation({
   },
 })
 
+async function replaceEntryTags(ctx: MutationCtx, userId: Id<'users'>, entryId: Id<'entries'>, tags: string[], now: number): Promise<Array<Id<'tags'>>> {
+  const existingLinks = await ctx.db
+    .query('entryTags')
+    .withIndex('by_userId_and_entryId', (q) => q.eq('userId', userId).eq('entryId', entryId))
+    .take(1000)
+
+  for (const link of existingLinks) {
+    await ctx.db.delete(link._id)
+  }
+
+  const tagIds: Array<Id<'tags'>> = []
+  const seenTagIds = new Set<Id<'tags'>>()
+  for (const rawTag of tags) {
+    const tagId = await ensureTag(ctx, userId, rawTag, now)
+    if (tagId === null || seenTagIds.has(tagId)) continue
+    seenTagIds.add(tagId)
+    tagIds.push(tagId)
+    await linkTag(ctx, userId, entryId, tagId, now)
+  }
+
+  return tagIds
+}
+
+export const updateFromTelegramEdit = mutation({
+  args: {
+    userId: v.id('users'),
+    sourceChatId: v.number(),
+    sourceMessageId: v.number(),
+    kind,
+    text: nullableString,
+    description: nullableString,
+    descriptionSource: v.optional(descriptionSource),
+    url: nullableString,
+    tags: v.array(v.string()),
+    telegram: v.optional(telegram),
+  },
+  returns: v.union(
+    v.object({status: v.literal('no_existing')}),
+    v.object({
+      status: v.literal('updated'),
+      entryId: v.id('entries'),
+      entryStatus,
+      tagIds: v.array(v.id('tags')),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query('entries')
+      .withIndex('by_userId_and_sourceChatId_and_sourceMessageId', (q) => q.eq('userId', args.userId).eq('sourceChatId', args.sourceChatId).eq('sourceMessageId', args.sourceMessageId))
+      .unique()
+
+    if (existing === null) return {status: 'no_existing' as const}
+
+    const now = Date.now()
+    const tagIds = await replaceEntryTags(ctx, args.userId, existing._id, args.tags, now)
+    const nextStatus: 'inbox' | 'saved' | 'archived' = existing.status === 'archived' ? 'archived' : tagIds.length > 0 ? 'saved' : 'inbox'
+
+    await ctx.db.patch(existing._id, {
+      kind: args.kind,
+      status: nextStatus,
+      text: args.text,
+      description: args.description,
+      descriptionSource: args.descriptionSource ?? (args.text === null && args.description === null ? 'none' : args.description !== null ? 'user' : 'text'),
+      url: args.url,
+      telegram: args.telegram ?? existing.telegram,
+      updatedAt: now,
+    })
+
+    return {
+      status: 'updated' as const,
+      entryId: existing._id,
+      entryStatus: nextStatus,
+      tagIds,
+    }
+  },
+})
+
+export const archiveBySourceMessage = mutation({
+  args: {
+    userId: v.id('users'),
+    sourceChatId: v.number(),
+    sourceMessageId: v.number(),
+  },
+  returns: v.union(
+    v.object({status: v.literal('missing')}),
+    v.object({
+      status: v.literal('archived'),
+      entryId: v.id('entries'),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query('entries')
+      .withIndex('by_userId_and_sourceChatId_and_sourceMessageId', (q) => q.eq('userId', args.userId).eq('sourceChatId', args.sourceChatId).eq('sourceMessageId', args.sourceMessageId))
+      .unique()
+
+    if (existing === null) return {status: 'missing' as const}
+
+    const now = Date.now()
+    await ctx.db.patch(existing._id, {
+      status: 'archived',
+      archivedAt: existing.archivedAt ?? now,
+      updatedAt: now,
+    })
+
+    const active = await ctx.db
+      .query('flows')
+      .withIndex('by_userId_and_chatId_and_status', (q) => q.eq('userId', args.userId).eq('chatId', args.sourceChatId).eq('status', 'active'))
+      .unique()
+
+    if (active !== null && active.entryId === existing._id) {
+      await ctx.db.patch(active._id, {
+        status: 'cancelled',
+        updatedAt: now,
+      })
+    }
+
+    return {
+      status: 'archived' as const,
+      entryId: existing._id,
+    }
+  },
+})
+
 export const getInboxItem = query({
   args: {
     userId: v.id('users'),

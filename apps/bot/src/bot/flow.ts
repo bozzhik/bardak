@@ -1,8 +1,8 @@
 import {extractTagTokens, normalizeTagToken} from '@repo/shared'
 
-import type {CancelTagFlowArgs, CancelTagFlowResult, CompleteDescriptionFlowArgs, CompleteDescriptionFlowResult, CompleteTagFlowByIdArgs, CompleteTagFlowByIdResult, CompleteTagFlowArgs, CompleteTagFlowResult, CountInboxArgs, CountInboxResult, EnsureTagArgs, EnsureTagResult, FindTagArgs, FindTagResult, GetActiveFlowArgs, GetActiveFlowResult, ListTagsArgs, ListTagsResult, NextInboxArgs, NextInboxResult, RegisterOnStartArgs, RegisterOnStartResult, RemoveTagArgs, RemoveTagResult, RenameTagArgs, RenameTagResult, SaveEntryArgs, SaveEntryResult, TouchOnCommandResult, TouchOnTextResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
+import type {ArchiveEntryBySourceMessageArgs, ArchiveEntryBySourceMessageResult, CancelTagFlowArgs, CancelTagFlowResult, CompleteDescriptionFlowArgs, CompleteDescriptionFlowResult, CompleteTagFlowByIdArgs, CompleteTagFlowByIdResult, CompleteTagFlowArgs, CompleteTagFlowResult, CountInboxArgs, CountInboxResult, EnsureTagArgs, EnsureTagResult, FindTagArgs, FindTagResult, GetActiveFlowArgs, GetActiveFlowResult, ListTagsArgs, ListTagsResult, NextInboxArgs, NextInboxResult, RegisterOnStartArgs, RegisterOnStartResult, RemoveTagArgs, RemoveTagResult, RenameTagArgs, RenameTagResult, SaveEntryArgs, SaveEntryResult, TouchOnCommandResult, TouchOnTextResult, UpdateEntryFromEditArgs, UpdateEntryFromEditResult, UpsertFlowArgs, UpsertFlowResult, UserIdentityPayload} from '@/convex/functions'
 
-import {ACTIVE_FLOW_MESSAGE, BOTS_NOT_SUPPORTED_MESSAGE, DESCRIPTION_SAVED_MESSAGE, INBOX_EMPTY_MESSAGE, INBOX_SKIPPED_MESSAGE, INVALID_CONTEXT_MESSAGE, NEED_DESCRIPTION_MESSAGE, NO_ACTIVE_FLOW_MESSAGE, NOT_REGISTERED_MESSAGE, SAVED_TO_INBOX_MESSAGE, START_MESSAGE, TAGS_EMPTY_MESSAGE, TAG_DELETE_CANCELLED_MESSAGE, TAG_DELETE_USAGE_MESSAGE, TAG_FORMAT_MESSAGE, TAG_NEW_USAGE_MESSAGE, TAG_RENAME_USAGE_MESSAGE, UNKNOWN_ACTION_MESSAGE, UNSUPPORTED_DESCRIPTION_MESSAGE, inboxCountMessage, inboxItemMessage, savedWithTagsMessage, tagCreatedMessage, tagDeleteConfirmMessage, tagDeletedMessage, tagExistsMessage, tagNotFoundMessage, tagRenamedMessage, tagsListMessage} from '@/bot/messages'
+import {ACTIVE_FLOW_MESSAGE, BOTS_NOT_SUPPORTED_MESSAGE, DELETE_REPLY_USAGE_MESSAGE, DESCRIPTION_SAVED_MESSAGE, EDITED_ENTRY_MESSAGE, EDITED_ENTRY_NOT_FOUND_MESSAGE, ENTRY_ARCHIVED_MESSAGE, ENTRY_NOT_FOUND_MESSAGE, INBOX_EMPTY_MESSAGE, INBOX_SKIPPED_MESSAGE, INVALID_CONTEXT_MESSAGE, NEED_DESCRIPTION_MESSAGE, NO_ACTIVE_FLOW_MESSAGE, NOT_REGISTERED_MESSAGE, PRIVATE_ONLY_MESSAGE, SAVED_TO_INBOX_MESSAGE, START_MESSAGE, TAGS_EMPTY_MESSAGE, TAG_DELETE_CANCELLED_MESSAGE, TAG_DELETE_USAGE_MESSAGE, TAG_FORMAT_MESSAGE, TAG_NEW_USAGE_MESSAGE, TAG_RENAME_USAGE_MESSAGE, UNKNOWN_ACTION_MESSAGE, UNSUPPORTED_DESCRIPTION_MESSAGE, inboxCountMessage, inboxItemMessage, savedWithTagsMessage, tagCreatedMessage, tagDeleteConfirmMessage, tagDeletedMessage, tagExistsMessage, tagNotFoundMessage, tagRenamedMessage, tagsListMessage} from '@/bot/messages'
 import {normalizeTelegramMessage, type NormalizedEntryMessage} from '@/telegram/normalize'
 
 export type BotDataClient = {
@@ -21,6 +21,8 @@ export type BotDataClient = {
   completeDescriptionFlow(args: CompleteDescriptionFlowArgs): Promise<CompleteDescriptionFlowResult>
   cancelTagFlow(args: CancelTagFlowArgs): Promise<CancelTagFlowResult>
   saveEntry(args: SaveEntryArgs): Promise<SaveEntryResult>
+  updateEntryFromEdit(args: UpdateEntryFromEditArgs): Promise<UpdateEntryFromEditResult>
+  archiveEntryBySourceMessage(args: ArchiveEntryBySourceMessageArgs): Promise<ArchiveEntryBySourceMessageResult>
   upsertFlow(args: UpsertFlowArgs): Promise<UpsertFlowResult>
   getActiveFlow(args: GetActiveFlowArgs): Promise<GetActiveFlowResult>
 }
@@ -57,6 +59,11 @@ export type TextFlowInput = {
 export type MessageFlowInput = {
   identity: UserIdentityPayload | null
   message: NormalizedEntryMessage
+}
+
+export type DeleteFlowInput = {
+  identity: UserIdentityPayload | null
+  replyToMessageId: number | null
 }
 
 export type TagsFlowInput = {
@@ -153,6 +160,10 @@ function hasTelegramMetadata(message: NormalizedEntryMessage): boolean {
   return (message.kind !== 'text' && message.kind !== 'link') || telegram.context.forwardOrigin !== null || telegram.context.forwardDate !== null || telegram.context.replyToMessageId !== null || telegram.file.fileId !== null
 }
 
+function isPrivateChat(identity: UserIdentityPayload): boolean {
+  return identity.chatKind === 'bot'
+}
+
 export async function handleStart(input: StartFlowInput, client: BotDataClient): Promise<ReplyResult> {
   const {identity} = input
   if (identity === null) {
@@ -161,6 +172,10 @@ export async function handleStart(input: StartFlowInput, client: BotDataClient):
 
   if (identity.isBotAccount) {
     return {type: 'reply', text: BOTS_NOT_SUPPORTED_MESSAGE}
+  }
+
+  if (!isPrivateChat(identity)) {
+    return {type: 'reply', text: PRIVATE_ONLY_MESSAGE}
   }
 
   await client.registerOnStart({
@@ -180,6 +195,10 @@ export async function handleTags(input: TagsFlowInput, client: BotDataClient): P
 
   if (identity.isBotAccount) {
     return {type: 'reply', text: BOTS_NOT_SUPPORTED_MESSAGE}
+  }
+
+  if (!isPrivateChat(identity)) {
+    return {type: 'reply', text: PRIVATE_ONLY_MESSAGE}
   }
 
   const result = await client.touchOnCommand(identity)
@@ -205,6 +224,10 @@ export async function handleInboxCount(input: InboxFlowInput, client: BotDataCli
     return {type: 'reply', text: BOTS_NOT_SUPPORTED_MESSAGE}
   }
 
+  if (!isPrivateChat(identity)) {
+    return {type: 'reply', text: PRIVATE_ONLY_MESSAGE}
+  }
+
   const result = await client.touchOnCommand(identity)
   if (result.status === 'not_registered') {
     return {type: 'reply', text: NOT_REGISTERED_MESSAGE}
@@ -226,6 +249,10 @@ export async function handleInbox(input: InboxFlowInput, client: BotDataClient):
 
   if (identity.isBotAccount) {
     return {type: 'reply', text: BOTS_NOT_SUPPORTED_MESSAGE}
+  }
+
+  if (!isPrivateChat(identity)) {
+    return {type: 'reply', text: PRIVATE_ONLY_MESSAGE}
   }
 
   const result = await client.touchOnCommand(identity)
@@ -267,6 +294,10 @@ export async function handleTagNew(input: TagNewFlowInput, client: BotDataClient
     return {type: 'reply', text: BOTS_NOT_SUPPORTED_MESSAGE}
   }
 
+  if (!isPrivateChat(identity)) {
+    return {type: 'reply', text: PRIVATE_ONLY_MESSAGE}
+  }
+
   const result = await client.touchOnCommand(identity)
   if (result.status === 'not_registered') {
     return {type: 'reply', text: NOT_REGISTERED_MESSAGE}
@@ -302,6 +333,10 @@ export async function handleTagRename(input: TagRenameFlowInput, client: BotData
 
   if (identity.isBotAccount) {
     return {type: 'reply', text: BOTS_NOT_SUPPORTED_MESSAGE}
+  }
+
+  if (!isPrivateChat(identity)) {
+    return {type: 'reply', text: PRIVATE_ONLY_MESSAGE}
   }
 
   const result = await client.touchOnCommand(identity)
@@ -344,6 +379,10 @@ export async function handleTagDelete(input: TagDeleteFlowInput, client: BotData
 
   if (identity.isBotAccount) {
     return {type: 'reply', text: BOTS_NOT_SUPPORTED_MESSAGE}
+  }
+
+  if (!isPrivateChat(identity)) {
+    return {type: 'reply', text: PRIVATE_ONLY_MESSAGE}
   }
 
   const result = await client.touchOnCommand(identity)
@@ -390,6 +429,10 @@ export async function handleCallback(input: CallbackFlowInput, client: BotDataCl
 
   if (identity.isBotAccount) {
     return {type: 'reply', text: BOTS_NOT_SUPPORTED_MESSAGE}
+  }
+
+  if (!isPrivateChat(identity)) {
+    return {type: 'reply', text: PRIVATE_ONLY_MESSAGE}
   }
 
   const callback = parseCallbackData(input.data)
@@ -448,6 +491,10 @@ export async function handleText(input: TextFlowInput, client: BotDataClient): P
     return {type: 'ignored_command', command: normalized.command}
   }
 
+  return await handleTextMessage({identity: input.identity, message: normalized.entry}, client)
+}
+
+export async function handleTextMessage(input: MessageFlowInput, client: BotDataClient): Promise<ReplyResult> {
   const {identity} = input
   if (identity === null) {
     return {type: 'reply', text: INVALID_CONTEXT_MESSAGE}
@@ -455,6 +502,10 @@ export async function handleText(input: TextFlowInput, client: BotDataClient): P
 
   if (identity.isBotAccount) {
     return {type: 'reply', text: BOTS_NOT_SUPPORTED_MESSAGE}
+  }
+
+  if (!isPrivateChat(identity)) {
+    return {type: 'reply', text: PRIVATE_ONLY_MESSAGE}
   }
 
   const result = await client.touchOnText(identity)
@@ -465,7 +516,7 @@ export async function handleText(input: TextFlowInput, client: BotDataClient): P
   const described = await client.completeDescriptionFlow({
     userId: result.userId,
     chatId: identity.chatId,
-    description: normalized.entry.text ?? '',
+    description: input.message.text ?? input.message.description ?? '',
   })
 
   if (described.status === 'described') {
@@ -485,7 +536,7 @@ export async function handleText(input: TextFlowInput, client: BotDataClient): P
     return {type: 'reply', text: NEED_DESCRIPTION_MESSAGE}
   }
 
-  return await saveNormalizedEntry({identity, message: normalized.entry}, client, result.userId)
+  return await saveNormalizedEntry(input, client, result.userId)
 }
 
 export async function handleMessage(input: MessageFlowInput, client: BotDataClient): Promise<ReplyResult> {
@@ -496,6 +547,10 @@ export async function handleMessage(input: MessageFlowInput, client: BotDataClie
 
   if (identity.isBotAccount) {
     return {type: 'reply', text: BOTS_NOT_SUPPORTED_MESSAGE}
+  }
+
+  if (!isPrivateChat(identity)) {
+    return {type: 'reply', text: PRIVATE_ONLY_MESSAGE}
   }
 
   const result = await client.touchOnText(identity)
@@ -512,6 +567,87 @@ export async function handleMessage(input: MessageFlowInput, client: BotDataClie
   }
 
   return await saveNormalizedEntry(input, client, result.userId)
+}
+
+export async function handleEditedMessage(input: MessageFlowInput, client: BotDataClient): Promise<ReplyResult> {
+  const {identity, message} = input
+  if (identity === null) {
+    return {type: 'reply', text: INVALID_CONTEXT_MESSAGE}
+  }
+
+  if (identity.isBotAccount) {
+    return {type: 'reply', text: BOTS_NOT_SUPPORTED_MESSAGE}
+  }
+
+  if (!isPrivateChat(identity)) {
+    return {type: 'reply', text: PRIVATE_ONLY_MESSAGE}
+  }
+
+  const result = await client.touchOnText(identity)
+  if (result.status === 'not_registered') {
+    return {type: 'reply', text: NOT_REGISTERED_MESSAGE}
+  }
+
+  const tags = extractTagTokens(entrySearchText(message))
+  const updated = await client.updateEntryFromEdit({
+    userId: result.userId,
+    sourceChatId: identity.chatId,
+    sourceMessageId: message.messageId,
+    kind: message.kind,
+    text: message.text,
+    description: message.description,
+    descriptionSource: message.descriptionSource,
+    url: message.url,
+    tags,
+    ...(hasTelegramMetadata(message) ? {telegram: message.telegram} : {}),
+  })
+
+  if (updated.status === 'no_existing') {
+    return {type: 'reply', text: EDITED_ENTRY_NOT_FOUND_MESSAGE}
+  }
+
+  if (updated.entryStatus === 'inbox') {
+    await client.upsertFlow({
+      userId: result.userId,
+      chatId: identity.chatId,
+      kind: needsDescription(message) ? 'description' : 'tag',
+      entryId: updated.entryId,
+    })
+  }
+
+  return {type: 'reply', text: EDITED_ENTRY_MESSAGE}
+}
+
+export async function handleDelete(input: DeleteFlowInput, client: BotDataClient): Promise<ReplyResult> {
+  const {identity} = input
+  if (identity === null) {
+    return {type: 'reply', text: INVALID_CONTEXT_MESSAGE}
+  }
+
+  if (identity.isBotAccount) {
+    return {type: 'reply', text: BOTS_NOT_SUPPORTED_MESSAGE}
+  }
+
+  if (!isPrivateChat(identity)) {
+    return {type: 'reply', text: PRIVATE_ONLY_MESSAGE}
+  }
+
+  const result = await client.touchOnCommand(identity)
+  if (result.status === 'not_registered') {
+    return {type: 'reply', text: NOT_REGISTERED_MESSAGE}
+  }
+
+  if (input.replyToMessageId === null) {
+    return {type: 'reply', text: DELETE_REPLY_USAGE_MESSAGE}
+  }
+
+  const archived = await client.archiveEntryBySourceMessage({
+    userId: result.userId,
+    sourceChatId: identity.chatId,
+    sourceMessageId: input.replyToMessageId,
+  })
+
+  return {type: 'reply', text: archived.status === 'archived' ? ENTRY_ARCHIVED_MESSAGE : ENTRY_NOT_FOUND_MESSAGE}
 }
 
 async function saveNormalizedEntry(input: MessageFlowInput, client: BotDataClient, userId: string): Promise<ReplyResult> {

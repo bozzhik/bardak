@@ -46,6 +46,32 @@ type SaveEntryResult = {
   tagIds: Array<Id<'tags'>>
 }
 
+type UpdateEntryFromEditResult =
+  | {
+      status: 'no_existing'
+    }
+  | {
+      status: 'updated'
+      entryId: Id<'entries'>
+      entryStatus: 'inbox' | 'saved' | 'archived'
+      tagIds: Array<Id<'tags'>>
+    }
+
+type ArchiveEntryBySourceMessageArgs = {
+  userId: Id<'users'>
+  sourceChatId: number
+  sourceMessageId: number
+}
+
+type ArchiveEntryBySourceMessageResult =
+  | {
+      status: 'missing'
+    }
+  | {
+      status: 'archived'
+      entryId: Id<'entries'>
+    }
+
 type UpsertFlowArgs = {
   userId: Id<'users'>
   chatId: number
@@ -204,6 +230,8 @@ type RegisterUserResult = {
 }
 
 const saveEntryRef = makeFunctionReference<'mutation', SaveEntryArgs, SaveEntryResult>('tables/entries:save')
+const updateEntryFromEditRef = makeFunctionReference<'mutation', SaveEntryArgs, UpdateEntryFromEditResult>('tables/entries:updateFromTelegramEdit')
+const archiveEntryBySourceMessageRef = makeFunctionReference<'mutation', ArchiveEntryBySourceMessageArgs, ArchiveEntryBySourceMessageResult>('tables/entries:archiveBySourceMessage')
 const upsertFlowRef = makeFunctionReference<'mutation', UpsertFlowArgs, UpsertFlowResult>('tables/flows:upsertActive')
 const getActiveFlowRef = makeFunctionReference<'query', GetActiveFlowArgs, GetActiveFlowResult>('tables/flows:getActive')
 const completeTagFlowRef = makeFunctionReference<'mutation', CompleteTagFlowArgs, CompleteTagFlowResult>('tables/flows:completeTag')
@@ -478,6 +506,48 @@ describe('entries data model', () => {
     expect(row?.descriptionSource).toBe('none')
     expect(row?.telegram.type).toBe('message:location')
     expect(row?.telegram.context.replyToMessageId).toBe(76)
+  })
+
+  test('updates an existing Telegram entry when the source message is edited', async () => {
+    const t = convexTest(schema, modules)
+    const userId = await createUser(t)
+    const saved = await t.mutation(saveEntryRef, createText(userId, {sourceMessageId: 91, text: 'old text #old', tags: ['#old']}))
+
+    const updated = await t.mutation(updateEntryFromEditRef, createText(userId, {sourceMessageId: 91, kind: 'link', text: 'new text https://example.com #new', url: 'https://example.com', tags: ['#new']}))
+    const row = await t.run((ctx) => ctx.db.get(saved.entryId))
+    const links = await t.run((ctx) =>
+      ctx.db
+        .query('entryTags')
+        .withIndex('by_userId_and_entryId', (q) => q.eq('userId', userId).eq('entryId', saved.entryId))
+        .take(10),
+    )
+    const tags = await t.run((ctx) => Promise.all(links.map((link) => ctx.db.get(link.tagId))))
+
+    expect(updated).toMatchObject({
+      status: 'updated',
+      entryId: saved.entryId,
+      entryStatus: 'saved',
+    })
+    expect(row?.kind).toBe('link')
+    expect(row?.text).toBe('new text https://example.com #new')
+    expect(row?.url).toBe('https://example.com')
+    expect(tags.map((tag) => tag?.slug)).toEqual(['new'])
+  })
+
+  test('archives an entry by replied Telegram source message and cancels its active flow', async () => {
+    const t = convexTest(schema, modules)
+    const userId = await createUser(t)
+    const entry = await t.mutation(saveEntryRef, createText(userId, {sourceChatId: 2001, sourceMessageId: 92}))
+    const flow = await t.mutation(upsertFlowRef, {userId, chatId: 2001, kind: 'tag', entryId: entry.entryId})
+
+    const archived = await t.mutation(archiveEntryBySourceMessageRef, {userId, sourceChatId: 2001, sourceMessageId: 92})
+    const row = await t.run((ctx) => ctx.db.get(entry.entryId))
+    const savedFlow = await t.run((ctx) => ctx.db.get(flow.flowId))
+
+    expect(archived).toEqual({status: 'archived', entryId: entry.entryId})
+    expect(row?.status).toBe('archived')
+    expect(typeof row?.archivedAt).toBe('number')
+    expect(savedFlow?.status).toBe('cancelled')
   })
 
   test('counts only inbox entries owned by the requested user', async () => {

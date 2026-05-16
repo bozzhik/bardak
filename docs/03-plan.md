@@ -121,9 +121,7 @@
 - [x] Есть минимум 5 тестов bot-flow.
 - [x] Можно проверить новую ветку поведения без запуска Telegram.
 - [x] `bun turbo check-types` проходит.
-- [ ] `bun turbo lint` проходит.
-
-Риск: `bun turbo lint` сейчас падает на существующих web warnings в generated/primitives файлах, не на bot-slice. Для bot-slice `bun --filter './apps/bot' lint` проходит.
+- [x] `bun turbo lint` проходит.
 
 ---
 
@@ -181,6 +179,15 @@
 - [x] Схема поддерживает текст, ссылки, ручные описания медиа и будущие AI-описания.
 - [x] Bot events доступны в db admin registry.
 
+**Позже, отдельными слоями:**
+
+- `pages`/`pageItems` для подборок и публичного шеринга.
+- `plans`/`payments`/`paymentEvents`/`entitlements` для монетизации.
+- `user_metrics_daily` как дешёвая агрегация поверх `botEvents`, когда понадобятся графики, лимиты или streaks.
+- `relatedEntries`/thread links для комментариев, reply-связей и объединения нескольких сообщений в один material.
+- Convex storage для превью, экспортов или сгенерированных артефактов, но не как обязательное хранилище Telegram-файлов.
+- Privacy mode/encryption layer как отдельная миграция данных, не блокирующая capture/search.
+
 ---
 
 ## Этап 3. Text capture loop
@@ -223,6 +230,13 @@
 - [x] Пользователь может привязать тег к последнему inbox entry.
 - [x] Критичный flow покрыт тестами.
 
+**Позже, отдельными слоями:**
+
+- Autotags и suggested tags поверх уже сохранённого текста.
+- Комментарии/уточнения к существующему material через reply, а не только новое сохранение.
+- Undo для последнего действия, если пользователь ошибся с тегом или статусом.
+- Более богатый preview текста в web, без усложнения Telegram capture.
+
 ---
 
 ## Этап 4. Tag management
@@ -257,6 +271,14 @@
 - [x] Пользователь может создать, увидеть, переименовать и удалить тег.
 - [x] Tag flow не требует ручного вмешательства в базу.
 - [x] Нет path, где entry остаётся в непонятном состоянии.
+
+**Позже, отдельными слоями:**
+
+- Merge tags, если пользователь создал дублирующие темы.
+- Tag aliases/synonyms для поиска без переименования исходного тега.
+- Популярные/последние теги и сортировка по usage.
+- Bulk retag для нескольких материалов сразу.
+- Граф related tags поверх `entryTags`.
 
 ---
 
@@ -293,6 +315,14 @@
 - [x] Входящие работают на индексах.
 - [x] Поведение покрыто тестами.
 
+**Позже, отдельными слоями:**
+
+- Фильтры входящих по типу, тегам, дате и источнику.
+- Batch actions: сохранить несколько, архивировать несколько, применить тег к нескольким.
+- Лёгкий progress/streak слой без превращения продукта в игру.
+- Отключаемые напоминания о несортированных материалах.
+- Web-разбор входящих с более удобным просмотром media/file previews.
+
 ---
 
 ## Этап 6. Message types beyond text
@@ -305,7 +335,8 @@
 - Если текста нет, бот сохраняет metadata, оставляет материал `inbox` и просит ручное описание.
 - Для фото, voice, audio, document, video и sticker храним Telegram metadata и `fileId`, если доступен.
 - Unsupported message сохраняется как `kind: 'unsupported'`, `status: 'inbox'`, с metadata и просьбой дать описание.
-- `edited_message` и удаление Telegram-сообщений в v1 не синхронизируются.
+- `edited_message` синхронизирует сохранённый entry по `userId + sourceChatId + sourceMessageId`.
+- Обычное удаление Telegram-сообщений не приходит в Bot API как update, поэтому авто-sync невозможен; для запуска даём явную команду `/delete` через reply.
 - AI-описания и транскрибация подключаются позже как enrichment, а не как обязательный ingestion.
 
 **Работы:**
@@ -317,7 +348,9 @@
 - [x] Добавить voice/audio с ручным описанием.
 - [x] Добавить document/PDF/file с caption или ручным описанием.
 - [x] Добавить сохранение unsupported message как inbox entry.
-- [x] Зафиксировать ignore-policy для `edited_message` и удалений.
+- [x] Реализовать sync для `edited_message`.
+- [x] Реализовать явное удаление/архивацию через `/delete` reply.
+- [x] Зафиксировать platform-policy для Telegram delete updates.
 
 **Тесты:**
 
@@ -327,13 +360,24 @@
 - [x] forwarded text сохраняет metadata forward source, если Telegram отдаёт его;
 - [x] reply к сохранённому сообщению создаёт связь или сохраняет reply metadata;
 - [x] unsupported type сохраняется как inbox entry и не ломает handler;
-- [x] `edited_message` не меняет уже сохранённый entry.
+- [x] `edited_message` обновляет уже сохранённый entry;
+- [x] `/delete` reply архивирует entry и отменяет активный flow;
+- [x] сообщения из групп в v1 не сохраняются.
 
 **DoD:**
 
 - [x] Пользователь может сохранить не только текст, но и материалы с ручным описанием.
 - [x] Типы сообщений идут через общий entry lifecycle.
 - [x] Нет отдельной логики, которую придётся выбрасывать при добавлении AI.
+
+**Позже, отдельными слоями:**
+
+- AI description для photo/document/video/sticker поверх уже сохранённого entry.
+- Transcription для voice/audio как enrichment, не как обязательное условие capture.
+- Search ranking по типу, тегам, описанию, source metadata и свежести.
+- Group mode с правилами владельца, участников и приватности.
+- Web-view для связей reply/forward и объединения нескольких сообщений в один material.
+- Business delete updates, если появится Telegram Business сценарий; обычный Bot API delete auto-sync не планируем как launch blocker.
 
 ---
 
@@ -368,6 +412,14 @@
 - [ ] Можно найти сохранённый текст.
 - [ ] Можно найти материалы по тегу.
 - [ ] Можно найти медиа по ручному описанию.
+
+**Позже, отдельными слоями:**
+
+- Semantic search по embeddings/AI-index.
+- Search ranking по свежести, тегам, типу, source metadata и частоте использования.
+- Saved filters и быстрые команды для частых поисков.
+- Поиск по transcript/OCR/AI summary, когда появится enrichment.
+- Web search UI с фильтрами и pagination.
 
 ---
 
@@ -404,6 +456,14 @@
 - [ ] Просмотр не требует авторизации.
 - [ ] Публичный доступ ограничен опубликованными страницами.
 
+**Позже, отдельными слоями:**
+
+- Редактирование layout, cover, описания и порядка блоков в web.
+- Private/unlisted/share-link режимы доступа.
+- Совместное редактирование страниц в group/workspace scope.
+- Экспорт страницы в Markdown/PDF.
+- Аналитика просмотров без раскрытия приватных материалов.
+
 ---
 
 ## Этап 9. AI enrichment
@@ -435,6 +495,14 @@
 
 - [ ] AI повышает удобство, но продукт работает без него.
 
+**Позже, отдельными слоями:**
+
+- BYOK для AI, если пользователь хочет управлять расходами и провайдером.
+- Очереди/retry/backoff для долгих enrichment jobs.
+- User controls: пересчитать, скрыть, принять или заменить AI-результат.
+- Настройки приватности: какие типы материалов можно отправлять во внешний AI.
+- Кэширование и версионирование AI-результатов, чтобы их можно было пересчитать после смены модели.
+
 ---
 
 ## Этап 10. Stabilization
@@ -447,7 +515,7 @@
 - [ ] Sentry для bot/web runtime errors.
 - [ ] Runbook для long-polling/webhook.
 - [ ] Runbook для Convex sync/codegen.
-- [ ] Smoke checklist перед релизом: `/start`, текст с тегом, текст без тега, создание первого тега, `/inbox`, private-only ответ в группе.
+- [ ] Smoke checklist перед релизом: `/start`, текст с тегом, текст без тега, media без caption, создание первого тега, `/inbox`, edit сохранённого сообщения, reply `/delete`, private-only ответ в группе.
 - [ ] Docker/Coolify проверка bot + web.
 
 **DoD:**
@@ -455,6 +523,14 @@
 - [ ] Ошибки видны.
 - [ ] Основные сбои диагностируются по инструкции.
 - [ ] Новые функции проходят через тесты, typecheck и lint.
+
+**Позже, отдельными слоями:**
+
+- Short-lived debug payload layer для расследования сложных Telegram updates без хранения текста в основном логе.
+- Daily metrics и dashboards поверх `botEvents`.
+- Alerting по ошибкам, webhook/long-polling health и Convex failures.
+- Миграционные runbooks для изменения schema после появления реальных пользователей.
+- Админские maintenance-команды только после чётких ownership checks.
 
 ---
 
@@ -509,6 +585,14 @@
 - [ ] Лимиты не превращаются в риск потери данных.
 - [ ] Payment provider можно заменить без переписывания core entitlement logic.
 
+**Позже, отдельными слоями:**
+
+- Lifetime Pro, если подтвердится спрос.
+- Автопродление/Wallet API только после оценки рисков токенов, scopes и отмены подписки.
+- Telegram Stars, Stripe или ЮKassa как дополнительные providers через тот же entitlement layer.
+- Купоны, trial, grace period и manual grants.
+- Billing/admin view для диагностики оплат и provider events.
+
 ---
 
 ## Этап 12. Web cabinet
@@ -545,6 +629,14 @@
 
 - [ ] Через web можно просмотреть и отредактировать основную базу.
 - [ ] Web не дублирует бизнес-логику бота.
+
+**Позже, отдельными слоями:**
+
+- Bulk editing и advanced filters.
+- Privacy settings UI для будущего privacy/encryption layer.
+- Media previews через Telegram file access или Convex storage.
+- Export/import личной базы.
+- Admin/debug views, отделённые от пользовательского кабинета.
 
 ---
 

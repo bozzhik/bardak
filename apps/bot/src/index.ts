@@ -20,7 +20,7 @@ const app = new Elysia()
 async function startRuntime(): Promise<void> {
   await bot.api.setMyCommands(botCommands)
   bot.start({
-    allowed_updates: ['message', 'callback_query'],
+    allowed_updates: ['message', 'edited_message', 'callback_query'],
     onStart: () => {
       console.log(`${env.logPrefix} long polling started`)
     },

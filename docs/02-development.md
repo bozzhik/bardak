@@ -118,11 +118,16 @@ Telegram update -> grammY handler -> domain/telegram normalizer -> Convex mutati
 - long-polling работает для dev;
 - `/start` регистрирует/обновляет пользователя в Convex;
 - `/help` отвечает справкой;
-- `message:text` пока только touch-ит пользователя и отвечает текстом обратно;
+- бот сохраняет text/link/photo/voice/audio/document/video/sticker/unsupported в `entries`;
+- текст/caption проходит через inline-tag parsing;
+- media/file без caption создаёт `flow: 'description'`;
+- `edited_message` синхронизирует сохранённый entry;
+- reply `/delete` архивирует сохранённый entry;
+- групповые чаты в текущем слое получают private-only ответ;
 - таблицы `entries`, `tags`, `entryTags`, `flows` уже есть в Convex data layer;
-- сохранение реальных Telegram-сообщений в `entries` подключается следующим bot-slice.
+- `botEvents` пишет компактный журнал команд, сообщений, отказов и ошибок.
 
-Важно: текущая реализация бота и `users` — рабочий черновик. При переходе к entries/tags/flows можно менять структуру модулей, если это делает bot-flow тестируемым и ближе к спецификации.
+Важно: ранняя реализация бота и `users` считалась рабочим черновиком. Текущие bot/data slices уже должны развиваться по актуальным docs, тестам и schema contracts.
 
 Полная bot-спецификация: [`04-bot.md`](./04-bot.md).
 
@@ -163,6 +168,14 @@ Telegram update -> grammY handler -> domain/telegram normalizer -> Convex mutati
 6. Idempotent save: повторный Telegram message не создаёт дубль.
 7. Фото/voice/document без описания переводят пользователя в `flow: 'description'`.
 8. Unsupported message сохраняется как `kind: 'unsupported'` и получает понятный запрос описания.
+
+Позже, отдельными слоями:
+
+- browser/e2e smoke tests для web-кабинета и публичных страниц;
+- contract tests для внешней web-интеграции;
+- webhook smoke на staging окружении;
+- migration/backfill tests, когда появятся реальные пользовательские данные;
+- AI provider tests через fake provider, без внешних API в unit-тестах.
 
 ---
 

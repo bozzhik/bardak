@@ -4,7 +4,7 @@ import type {UserIdentityPayload} from '@/convex/functions'
 
 import {BOTS_NOT_SUPPORTED_MESSAGE, INVALID_CONTEXT_MESSAGE, NOT_REGISTERED_MESSAGE, START_MESSAGE} from '@/bot/messages'
 import {createFakeBotDataClient} from '@/convex/fake-client'
-import {handleCallback, handleInbox, handleInboxCount, handleMessage, handleStart, handleTagDelete, handleTagNew, handleTagRename, handleTags, handleText, inboxSkipCallback, readStartPayload, tagDeleteCancelCallback, tagDeleteConfirmCallback, tagPickCallback} from '@/bot/flow'
+import {handleCallback, handleDelete, handleEditedMessage, handleInbox, handleInboxCount, handleMessage, handleStart, handleTagDelete, handleTagNew, handleTagRename, handleTags, handleText, inboxSkipCallback, readStartPayload, tagDeleteCancelCallback, tagDeleteConfirmCallback, tagPickCallback} from '@/bot/flow'
 import type {NormalizedEntryMessage} from '@/telegram/normalize'
 
 const USER: UserIdentityPayload = {
@@ -19,6 +19,12 @@ const USER: UserIdentityPayload = {
   isPremium: null,
   timezone: null,
   locale: 'en',
+}
+
+const GROUP_USER: UserIdentityPayload = {
+  ...USER,
+  chatId: -100420,
+  chatKind: 'supergroup',
 }
 
 const PHOTO_MESSAGE: NormalizedEntryMessage = {
@@ -252,6 +258,16 @@ describe('bot flow', () => {
     expect(client.upsertFlowCalls).toEqual([{userId: 'users:test', chatId: 420, kind: 'description', entryId: 'entries:test'}])
   })
 
+  test('group messages are rejected without saving entries', async () => {
+    const client = createFakeBotDataClient()
+
+    const result = await handleMessage({identity: GROUP_USER, message: PHOTO_MESSAGE}, client)
+
+    expect(result).toEqual({type: 'reply', text: 'Пока сохраняю только в личном чате. Напиши мне напрямую.'})
+    expect(client.touchCalls).toHaveLength(0)
+    expect(client.saveEntryCalls).toHaveLength(0)
+  })
+
   test('photo with caption saves description and starts tag flow', async () => {
     const client = createFakeBotDataClient()
     const message: NormalizedEntryMessage = {
@@ -344,6 +360,60 @@ describe('bot flow', () => {
     expect(result).toEqual({type: 'reply', text: 'Сохранил описание. Теперь напиши тег в формате #example или оставь во входящих.'})
     expect(client.completeDescriptionFlowCalls).toEqual([{userId: 'users:test', chatId: 420, description: 'photo of monitor adapter'}])
     expect(client.saveEntryCalls).toHaveLength(0)
+  })
+
+  test('edited messages update an existing entry and refresh inline tags', async () => {
+    const client = createFakeBotDataClient({
+      updateEntryFromEditResult: {
+        status: 'updated',
+        entryId: 'entries:test',
+        entryStatus: 'saved',
+        tagIds: ['tags:test'],
+      },
+    })
+
+    const message: NormalizedEntryMessage = {
+      ...PHOTO_MESSAGE,
+      messageId: 506,
+      kind: 'link',
+      text: 'updated https://example.com #read',
+      description: null,
+      descriptionSource: 'text',
+      url: 'https://example.com',
+    }
+
+    const result = await handleEditedMessage({identity: USER, message}, client)
+
+    expect(result).toEqual({type: 'reply', text: 'Обновил сохранённый материал.'})
+    expect(client.updateEntryFromEditCalls).toMatchObject([
+      {
+        userId: 'users:test',
+        sourceChatId: 420,
+        sourceMessageId: 506,
+        kind: 'link',
+        text: 'updated https://example.com #read',
+        url: 'https://example.com',
+        tags: ['#read'],
+      },
+    ])
+  })
+
+  test('/delete archives the entry referenced by replied Telegram message', async () => {
+    const client = createFakeBotDataClient()
+
+    const result = await handleDelete({identity: USER, replyToMessageId: 500}, client)
+
+    expect(result).toEqual({type: 'reply', text: 'Убрал материал из активных.'})
+    expect(client.archiveEntryBySourceMessageCalls).toEqual([{userId: 'users:test', sourceChatId: 420, sourceMessageId: 500}])
+  })
+
+  test('/delete asks for a reply when no source message is referenced', async () => {
+    const client = createFakeBotDataClient()
+
+    const result = await handleDelete({identity: USER, replyToMessageId: null}, client)
+
+    expect(result).toEqual({type: 'reply', text: 'Ответь командой /delete на материал, который нужно убрать.'})
+    expect(client.archiveEntryBySourceMessageCalls).toHaveLength(0)
   })
 
   test('active tag flow consumes the next hashtag message instead of saving a new entry', async () => {

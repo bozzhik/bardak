@@ -373,7 +373,16 @@ Forwarded message обрабатывается по типу оригиналь�
 - forwarded и reply metadata сохраняются в `telegram.context`;
 - unsupported message сохраняется как `kind: 'unsupported'` и просит ручное описание.
 
-`edited_message` и удаление Telegram-сообщений в v1 не синхронизируются: сохранённый entry остаётся snapshot на момент capture.
+`edited_message` обновляет сохранённый entry по Telegram source key. Обычное удаление Telegram-сообщения не приходит боту как standard update, поэтому пользователь явно архивирует материал через reply `/delete`.
+
+Позже, отдельными слоями:
+
+- AI description для media/file entries;
+- transcription для voice/audio;
+- search ranking по типу, тегам, описанию, source metadata и свежести;
+- group mode с правилами владельца, участников и приватности;
+- web-view для reply/forward связей и объединения нескольких сообщений в один material;
+- Telegram Business delete updates, если появится business-сценарий.
 
 ---
 
@@ -387,7 +396,7 @@ Reply может означать два разных сценария:
 Первый слой:
 
 - текущий `flow` имеет приоритет над обычным entry ingestion;
-- если текущего `flow` нет, reply сохраняется как новый entry с metadata `replyToSourceMessageId`;
+- если текущего `flow` нет, reply сохраняется как новый entry с metadata `replyToMessageId`;
 - если исходное сообщение уже известно системе, можно связать через `relatedEntryId`.
 
 Позже:
@@ -465,6 +474,7 @@ Reply может означать два разных сценария:
 | `/tag_new`     | создать тег                                |
 | `/tag_rename`  | переименовать тег                          |
 | `/tag_delete`  | удалить тег                                |
+| `/delete`      | убрать material через reply                |
 | `/inbox`       | разобрать следующий inbox-материал         |
 | `/inbox_count` | показать количество материалов во входящих |
 | `/search`      | поиск                                      |
@@ -597,9 +607,25 @@ Telegram может прислать повторный update или handler м
 
 ## Редактирование и удаление
 
-В первой рабочей версии `edited_message` не синхронизируется с уже сохранённым entry. Сохранённый материал остаётся snapshot на момент capture.
+`edited_message` синхронизируется с уже сохранённым entry по ключу `userId + sourceChatId + sourceMessageId`.
 
-Удаление Telegram-сообщений также не синхронизируется в v1. Позже можно добавить явный edit/delete flow, если это станет важным для приватности или точности базы.
+Что обновляется:
+
+- `kind`;
+- `text` или `description`;
+- `descriptionSource`;
+- `url`;
+- inline-теги и связи `entryTags`;
+- Telegram metadata.
+
+Если после редактирования у материала нет тегов, он возвращается в `inbox`. Если после редактирования media/file снова требует описания, бот создаёт `flow: 'description'`.
+
+Обычное удаление Telegram-сообщений не приходит боту как update в стандартных personal/group чатах. Bot API отдаёт delete updates только для connected business-сценариев. Поэтому для запуска используем явное удаление:
+
+1. Пользователь отвечает `/delete` на исходный материал.
+2. Бот находит entry по `userId + sourceChatId + replyToMessageId`.
+3. Entry получает `status: 'archived'`.
+4. Если по нему был активный flow, flow становится `cancelled`.
 
 ---
 
@@ -629,7 +655,7 @@ Telegram может прислать повторный update или handler м
 - Для bot-flow и pure-логики использовать TDD: сначала meaningful failing test, затем реализация.
 - Convex v1 тестировать fake-first через adapter/service слой.
 - Реальные Convex functions защищать validators, typecheck/codegen и helper-тестами.
-- Для каждого bot-slice держать manual smoke checklist: `/start`, текст с тегом, текст без тега, создание первого тега, `/inbox`, private-only ответ в группе.
+- Для каждого bot-slice держать manual smoke checklist: `/start`, текст с тегом, текст без тега, media без caption, создание первого тега, `/inbox`, edit сохранённого сообщения, reply `/delete`, private-only ответ в группе.
 
 ### Рекомендуемая структура
 
@@ -676,4 +702,4 @@ apps/bot/src/
 
 **Что делать с группами в v1?** Не сохранять материалы из групп. Бот коротко объясняет, что пока работает только в личном чате.
 
-**Что делать с `edited_message` и удалением Telegram-сообщений?** В v1 игнорировать. Сохранённый entry остаётся snapshot на момент capture.
+**Что делать с `edited_message` и удалением Telegram-сообщений?** `edited_message` обновляет сохранённый entry. Авто-sync обычного удаления невозможен через Bot API, поэтому пользователь удаляет entry явно: reply `/delete` на исходный материал.

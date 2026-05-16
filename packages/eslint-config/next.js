@@ -24,6 +24,7 @@ export const nextJsConfig = [
     'out/**',
     'build/**',
     'next-env.d.ts',
+    'convex/_generated/**',
   ]),
   {
     ...pluginReact.configs.flat.recommended,
@@ -52,6 +53,7 @@ export const nextJsConfig = [
       ...pluginReactHooks.configs.recommended.rules,
       // React scope no longer necessary with new JSX transform.
       'react/react-in-jsx-scope': 'off',
+      'react/prop-types': 'off',
     },
   },
 ]

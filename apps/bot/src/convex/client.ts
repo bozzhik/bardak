@@ -1,7 +1,7 @@
 import {ConvexHttpClient} from 'convex/browser'
 
 import {env} from '@/config/env'
-import {cancelTagFlowRef, type CancelTagFlowArgs, type CancelTagFlowResult, completeDescriptionFlowRef, type CompleteDescriptionFlowArgs, type CompleteDescriptionFlowResult, completeTagFlowByIdRef, type CompleteTagFlowByIdArgs, type CompleteTagFlowByIdResult, completeTagFlowRef, type CompleteTagFlowArgs, type CompleteTagFlowResult, countInboxRef, type CountInboxArgs, type CountInboxResult, ensureTagRef, type EnsureTagArgs, type EnsureTagResult, findTagRef, type FindTagArgs, type FindTagResult, getActiveFlowRef, type GetActiveFlowArgs, type GetActiveFlowResult, getNextInboxRef, incrementErrorCounterRef, type IncrementErrorCounterResult, listTagsRef, type ListTagsArgs, type ListTagsResult, type NextInboxArgs, type NextInboxResult, recordBotEventRef, type RecordBotEventArgs, type RecordBotEventResult, registerOnStartRef, type RegisterOnStartArgs, type RegisterOnStartResult, removeTagRef, type RemoveTagArgs, type RemoveTagResult, renameTagRef, type RenameTagArgs, type RenameTagResult, saveEntryRef, type SaveEntryArgs, type SaveEntryResult, touchOnCommandRef, type TouchOnCommandResult, touchOnTextRef, type TouchOnTextResult, type UpsertFlowArgs, type UpsertFlowResult, type UserIdentityPayload, upsertFlowRef} from '@/convex/functions'
+import {archiveEntryBySourceMessageRef, type ArchiveEntryBySourceMessageArgs, type ArchiveEntryBySourceMessageResult, cancelTagFlowRef, type CancelTagFlowArgs, type CancelTagFlowResult, completeDescriptionFlowRef, type CompleteDescriptionFlowArgs, type CompleteDescriptionFlowResult, completeTagFlowByIdRef, type CompleteTagFlowByIdArgs, type CompleteTagFlowByIdResult, completeTagFlowRef, type CompleteTagFlowArgs, type CompleteTagFlowResult, countInboxRef, type CountInboxArgs, type CountInboxResult, ensureTagRef, type EnsureTagArgs, type EnsureTagResult, findTagRef, type FindTagArgs, type FindTagResult, getActiveFlowRef, type GetActiveFlowArgs, type GetActiveFlowResult, getNextInboxRef, incrementErrorCounterRef, type IncrementErrorCounterResult, listTagsRef, type ListTagsArgs, type ListTagsResult, type NextInboxArgs, type NextInboxResult, recordBotEventRef, type RecordBotEventArgs, type RecordBotEventResult, registerOnStartRef, type RegisterOnStartArgs, type RegisterOnStartResult, removeTagRef, type RemoveTagArgs, type RemoveTagResult, renameTagRef, type RenameTagArgs, type RenameTagResult, saveEntryRef, type SaveEntryArgs, type SaveEntryResult, touchOnCommandRef, type TouchOnCommandResult, touchOnTextRef, type TouchOnTextResult, updateEntryFromEditRef, type UpdateEntryFromEditArgs, type UpdateEntryFromEditResult, type UpsertFlowArgs, type UpsertFlowResult, type UserIdentityPayload, upsertFlowRef} from '@/convex/functions'
 
 const client = new ConvexHttpClient(env.convexUrl)
 
@@ -52,6 +52,14 @@ export async function removeTag(args: RemoveTagArgs): Promise<RemoveTagResult> {
 
 export async function saveEntry(args: SaveEntryArgs): Promise<SaveEntryResult> {
   return await client.mutation(saveEntryRef, args)
+}
+
+export async function updateEntryFromEdit(args: UpdateEntryFromEditArgs): Promise<UpdateEntryFromEditResult> {
+  return await client.mutation(updateEntryFromEditRef, args)
+}
+
+export async function archiveEntryBySourceMessage(args: ArchiveEntryBySourceMessageArgs): Promise<ArchiveEntryBySourceMessageResult> {
+  return await client.mutation(archiveEntryBySourceMessageRef, args)
 }
 
 export async function upsertFlow(args: UpsertFlowArgs): Promise<UpsertFlowResult> {

@@ -228,17 +228,11 @@ Web-фичи не должны диктовать структуру core data l
 
 Это не текущий план реализации, а карта будущих слоёв:
 
-- страницы и публичный шеринг;
-- расширенный web-кабинет;
-- AI-описания и автотеги;
-- транскрибация голосовых;
-- OCR и обработка документов;
-- семантический поиск;
-- напоминания и задачи;
-- onboarding и прогресс по входящим;
-- командные пространства;
-- внешняя web-интеграция;
-- YooMoney/ЮMoney payments;
-- «память бота»;
-- настройка стиля общения;
-- граф тегов и связей.
+- **Search/AI:** AI-описания, автотеги, транскрибация голосовых, OCR, обработка документов, semantic search и AI-ответы по личной базе.
+- **Assistant:** «память бота», пользовательские правила, настройка стиля общения, тон ответа и AI-действия поверх выбранных материалов.
+- **Organization:** страницы, публичный шеринг, related materials, граф тегов и связей, объединение нескольких сообщений в один material.
+- **Inbox/progress:** onboarding, прогресс по входящим, мягкие напоминания, batch-разбор и отключаемые routines.
+- **Collaboration:** приватные группы, командные пространства, авторство, ownership и access rules.
+- **Web/integrations:** расширенный web-кабинет, публичные страницы, внешняя web-интеграция и внутренние admin/debug views.
+- **Business:** YooMoney/ЮMoney payments, provider-independent entitlements, Free/Pro limits, BYOK для AI, возможный lifetime-тариф.
+- **Privacy/ops:** privacy mode, encryption layer, audit/debug layer, daily metrics, pino logging и Sentry.

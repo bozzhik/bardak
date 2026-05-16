@@ -33,4 +33,8 @@ export const botCommands: BotCommand[] = [
     command: 'tag_delete',
     description: 'Удалить тег',
   },
+  {
+    command: 'delete',
+    description: 'Убрать материал',
+  },
 ]
